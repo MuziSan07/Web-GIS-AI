@@ -77,6 +77,18 @@ def test_facilities_land_on_non_residential_blocks(ctx):
         assert overlap < f.geometry.area * 0.05, f.facility_id
 
 
+def test_every_facility_lies_inside_a_block(ctx):
+    """A carved site outside its host block leaves the block un-shrunk, so the
+    next facility is placed on the same ground. Three ended up stacked."""
+    from shapely.ops import unary_union
+
+    blocks = unary_union([b.geometry for b in ctx["blocks"].blocks]).buffer(0.5)
+    for f in ctx["fp"].facilities:
+        outside = f.geometry.difference(blocks).area
+        assert outside < f.geometry.area * 0.02, (
+            f"{f.key} {f.facility_id} lies {outside:,.0f} m2 outside any block")
+
+
 def test_facilities_do_not_overlap_each_other(ctx):
     facs = ctx["fp"].facilities
     for i, a in enumerate(facs):

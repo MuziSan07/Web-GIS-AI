@@ -286,7 +286,16 @@ def _carve(geom: Polygon, need_m2: float) -> Polygon:
                                     edge[1][0] - edge[0][0]))
 
     origin = geom.centroid
-    local = affinity.rotate(geom, -angle, origin=origin)
+
+    # Rotation can turn a valid polygon invalid: a block that has already been
+    # carved twice carries near-degenerate spikes, and rotating one is enough to
+    # make two edges cross in floating point. Every overlay and every predicate
+    # against an invalid polygon is then unreliable - the strip below reported
+    # itself inside this shape while sitting fifty metres outside the block -
+    # so repair before using it rather than trusting what it says about itself.
+    local = _largest_polygon(clean(affinity.rotate(geom, -angle, origin=origin)))
+    if local.is_empty or local.geom_type != "Polygon":
+        return geom
     minx, miny, maxx, maxy = local.bounds
     width = maxx - minx
     if width <= 0:
@@ -304,7 +313,17 @@ def _carve(geom: Polygon, need_m2: float) -> Polygon:
         box(minx, miny, maxx, miny + min(height, maxy - miny)), local)
     if strip.is_empty:
         return geom
-    return _largest_polygon(affinity.rotate(strip, angle, origin=origin))
+
+    carved = _largest_polygon(affinity.rotate(strip, angle, origin=origin))
+
+    # A carved site outside its own block is not a site. Clipping here makes
+    # that impossible by construction rather than by trusting the rotation to
+    # invert cleanly: when it did not, the block never shrank, and the next
+    # three facilities were stacked on the same ground.
+    carved = _largest_polygon(clean(safe_intersection(carved, geom)))
+    if carved.is_empty or carved.geom_type != "Polygon":
+        return geom
+    return carved
 
 
 def _largest_polygon(geom) -> Polygon:

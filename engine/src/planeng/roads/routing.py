@@ -127,6 +127,23 @@ class GridRouter:
         )
         return dist, pred
 
+    def solve_from_cells(self, mask: np.ndarray):
+        """Shortest paths from anywhere on a mask, in one pass.
+
+        Used when the source is a whole existing network rather than a point:
+        the cheapest link to "the road system" is wanted, not the cheapest link
+        to one arbitrary manhole on it. `min_only` collapses every source into a
+        single frontier, so this costs one Dijkstra rather than one per source.
+        """
+        starts = np.flatnonzero(mask.ravel())
+        if starts.size == 0:
+            raise ValueError("No source cells to route from.")
+        dist, pred, _ = dijkstra(
+            self._graph, directed=False, indices=starts,
+            return_predecessors=True, min_only=True,
+        )
+        return dist, pred
+
     def trace(self, pred: np.ndarray, end: tuple[int, int]) -> list[tuple[int, int]]:
         """Walk the predecessor array back from a destination to the source."""
         cur = self._flat(end)

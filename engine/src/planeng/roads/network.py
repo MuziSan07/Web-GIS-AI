@@ -28,6 +28,7 @@ from ..analysis.constraints import ConstraintResult
 from ..geom import cells_to_line, polygonise
 from ..site.model import Site
 from ..standards.loader import Standards
+from .connect import connect_islands
 from .routing import GridRouter, build_cost_surface, nearest_valid_cell
 
 # Which land uses earn a district distributor of their own.
@@ -199,7 +200,13 @@ def generate_network(
     _add_local_grid(net, site, std, allocation, constraints,
                     reserve["local_access"], programme)
 
-    # -- 6. connectivity check -------------------------------------------
+    # -- 6. make it one network ------------------------------------------
+    # The local grid is clipped, not routed, so it can leave street islands
+    # that no vehicle and no utility can reach. Link them before anything
+    # downstream measures blocks or plots against them.
+    connect_islands(net, site, std, constraints)
+
+    # -- 7. connectivity check -------------------------------------------
     _check_connectivity(net, site, buildable, np.isfinite(cost_dist), access)
 
     # -- reserves ---------------------------------------------------------

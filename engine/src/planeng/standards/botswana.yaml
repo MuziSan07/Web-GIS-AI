@@ -279,20 +279,42 @@ infrastructure:
     peak_factor: 2.5
     reservoir_storage_hours: 48
     fire_flow_l_per_s: 30
+    design_velocity_m_per_s: 1.0
+    min_main_diameter_mm: 110
+    commercial_diameters_mm: [110, 160, 200, 250, 315, 400, 500]
+    reservoir_min_head_m: 15
+    reservoir_site_area_ha: 0.5
     source: PLACEHOLDER
   sewer:
     return_factor: 0.80
     peak_factor: 2.5
     treatment_works_buffer_m: 500
+    min_self_cleansing_gradient: 0.005
+    design_velocity_m_per_s: 0.8
+    min_sewer_diameter_mm: 160
+    commercial_diameters_mm: [160, 200, 250, 315, 400, 500, 630]
+    max_manhole_spacing_m: 100
+    min_cover_m: 1.0
+    max_excavation_depth_m: 6.0
+    pump_station_site_area_ha: 0.1
+    treatment_works_area_ha_per_1000_pop: 0.35
     source: PLACEHOLDER
   stormwater:
     design_storm_years: 10
     major_system_storm_years: 100
+    runoff_coefficient_residential: 0.55
+    runoff_coefficient_commercial: 0.85
+    runoff_coefficient_open_space: 0.20
+    detention_m3_per_impervious_ha: 250
+    min_drainage_reserve_m: 12
     source: PLACEHOLDER
   electricity:
     admd_kva_per_household: 1.5
     substation_threshold_population: 10000
     substation_site_area_ha: 0.25
+    mv_voltage_kv: 11
+    distribution_transformer_kva: 315
+    transformer_max_lv_radius_m: 400
     source: PLACEHOLDER
   solid_waste:
     generation_kg_per_capita_day: 0.7
@@ -300,6 +322,44 @@ infrastructure:
     landfill_buffer_from_residential_m: 500
     transfer_station_threshold_population: 25000
     source: PLACEHOLDER
+
+  street_lighting:
+    # Pole spacing by road class. Wider reserves carry higher mounting heights
+    # and therefore wider spacing.
+    spacing_m:
+      arterial: 45
+      district_distributor: 40
+      collector: 35
+      local_access: 30
+      internal: 30
+    mounting_height_m:
+      arterial: 12
+      district_distributor: 10
+      collector: 9
+      local_access: 8
+      internal: 8
+    junction_luminaires: 2
+    load_w_per_luminaire: 120
+    source: PLACEHOLDER
+
+utility_corridor:
+  # Lateral position of each service within the road reserve, measured from the
+  # reserve edge. Separation matters: a water main and a sewer in the same
+  # trench is a contamination path, and electrical cable over a water main
+  # makes every repair a shutdown.
+  offsets_from_reserve_edge_m:
+    water: 1.5
+    sewer: 4.0
+    electricity: 2.5
+    telecoms: 1.0
+  min_horizontal_separation_m:
+    water_to_sewer: 2.0
+    water_to_electricity: 0.5
+  servitude_width_m:
+    trunk_water: 6.0
+    trunk_sewer: 6.0
+    mv_electrical: 8.0
+  source: PLACEHOLDER
 
 # -----------------------------------------------------------------------------
 # Environmental and siting constraints

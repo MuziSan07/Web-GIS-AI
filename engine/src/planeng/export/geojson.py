@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 from rasterio import features
-from shapely.geometry import mapping, shape
+from shapely.geometry import Point, mapping, shape
 from shapely.ops import transform as shapely_transform
 from pyproj import Transformer
 
@@ -88,6 +88,7 @@ def plan_to_geojson(
     cadastre=None,
     facility_plan=None,
     controls=None,
+    infrastructure=None,
     min_polygon_m2: float = 400.0,
 ) -> dict:
     """Assemble the whole plan as one FeatureCollection ready for MapLibre."""
@@ -254,6 +255,10 @@ def plan_to_geojson(
         })
 
     _smooth_layers(features_out, site.cell_size)
+    # -- engineering services ---------------------------------------------
+    if infrastructure is not None:
+        features_out.extend(_infrastructure_features(infrastructure, site))
+
     return {"type": "FeatureCollection", "features": features_out}
 
 
@@ -283,3 +288,101 @@ def write_geojson(fc: dict, path: str | Path) -> Path:
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(fc, fh)
     return path
+
+
+# ---------------------------------------------------------------------------
+
+# Services are drawn as lines over the plan, so they carry their own colours
+# rather than borrowing the land use palette.
+SERVICE_COLOURS = {
+    "water": "#1f78b4",
+    "sewer": "#8b5a2b",
+    "electricity": "#e6ab02",
+    "stormwater": "#4daf4a",
+}
+
+
+def _infrastructure_features(infra, site: Site) -> list[dict]:
+    """Every service run, works site and structure as its own feature.
+
+    Runs are emitted individually rather than merged per service: a planner
+    reviewing this needs to click a main and see its diameter and the flow it
+    carries, and a merged multiline carries neither.
+    """
+    out: list[dict] = []
+
+    for works in infra.works.sites:
+        out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(works.geometry, site.crs)),
+            "properties": {
+                "layer": "service_site",
+                "key": works.key,
+                "label": works.label,
+                "area_ha": round(works.area_ha, 2),
+                "level_m": round(works.level_m, 1),
+                "compliant": works.compliant,
+                "notes": " ".join(works.notes),
+                "colour": "#984ea3",
+            },
+        })
+
+    for net in infra.networks:
+        colour = SERVICE_COLOURS.get(net.service, "#777777")
+        for c in net.conduits:
+            props = {
+                "layer": "service_run",
+                "service": net.service,
+                "length_m": round(c.length_m, 1),
+                "road_class": c.road_class,
+                "colour": colour,
+            }
+            if net.service == "electricity":
+                props["load_kva"] = round(c.carries, 1)
+            else:
+                props["size_mm"] = int(c.size_mm)
+                props["flow_l_per_s"] = round(c.carries, 2)
+            if net.service == "sewer":
+                props["gradient_pct"] = round(c.gradient * 100, 2)
+                props["pumped"] = c.pumped
+            out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(c.geometry, site.crs)),
+                "properties": props,
+            })
+
+    for x, y in infra.sewer.pump_stations:
+        out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(Point(x, y), site.crs)),
+            "properties": {"layer": "pump_station", "service": "sewer",
+                           "colour": "#8b5a2b"},
+        })
+
+    storm = infra.stormwater
+    for ch in storm.channels:
+        out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(ch.geometry, site.crs)),
+            "properties": {
+                "layer": "drainage_channel",
+                "catchment_ha": round(ch.catchment_ha, 1),
+                "reserve_width_m": ch.reserve_width_m,
+                "colour": SERVICE_COLOURS["stormwater"],
+            },
+        })
+    for pt in storm.outfalls:
+        out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(pt, site.crs)),
+            "properties": {"layer": "outfall",
+                           "colour": SERVICE_COLOURS["stormwater"]},
+        })
+    for pt in storm.culverts:
+        out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(pt, site.crs)),
+            "properties": {"layer": "culvert", "colour": "#666666"},
+        })
+
+    return out

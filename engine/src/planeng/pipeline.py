@@ -22,6 +22,7 @@ from .roads.internal import add_internal_streets
 from .cadastre.parcels import CadastralLayout, subdivide
 from .control.controls import ControlReport, apply_controls
 from .facilities.siting import FacilityPlan, site_facilities
+from .infrastructure.plan import InfrastructurePlan, design_infrastructure
 from .roads.network import RoadNetwork, generate_network
 from .site.model import Site
 from .site.synthetic import generate_site
@@ -41,6 +42,7 @@ class MasterPlan:
     cadastre: CadastralLayout
     facility_plan: FacilityPlan
     controls: ControlReport
+    infrastructure: InfrastructurePlan
     standards: Standards
     timings_ms: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
@@ -50,7 +52,8 @@ class MasterPlan:
                                network=self.network, blocks=self.blocks,
                                cadastre=self.cadastre,
                                facility_plan=self.facility_plan,
-                               controls=self.controls)
+                               controls=self.controls,
+                               infrastructure=self.infrastructure)
 
     def report(self) -> dict:
         """The machine-readable plan summary, used by the API and the UI."""
@@ -75,6 +78,7 @@ class MasterPlan:
                 ),
             },
             "constraints": self.constraints.summary(self.site),
+            "infrastructure": self.infrastructure.summary(),
             "dwellings": [
                 {
                     "band": d.band,
@@ -175,12 +179,19 @@ def generate_master_plan(
     controls = step("development_control",
                     lambda: apply_controls(site, std, cadastre, network, allocation))
 
+    # Engineering last: every service follows the road reserve, and the works
+    # have to fit around whatever land the blocks and facilities left.
+    infrastructure = step("infrastructure", lambda: design_infrastructure(
+        site, std, programme, allocation, blocks, network, facility_plan,
+        constraints))
+
     warnings = list(programme.warnings)
     warnings.extend(network.warnings)
     warnings.extend(blocks.warnings)
     warnings.extend(cadastre.warnings)
     warnings.extend(facility_plan.warnings)
     warnings.extend(controls.warnings)
+    warnings.extend(infrastructure.warnings)
     if (msg := reconcile_plots(blocks, programme.total_dwellings)) is not None:
         warnings.append(msg)
 
@@ -200,5 +211,6 @@ def generate_master_plan(
         brief=brief, site=site, programme=programme, constraints=constraints,
         suitability=suitability, allocation=allocation, network=network,
         blocks=blocks, cadastre=cadastre, facility_plan=facility_plan,
-        controls=controls, standards=std, timings_ms=timings, warnings=warnings,
+        controls=controls, infrastructure=infrastructure, standards=std,
+        timings_ms=timings, warnings=warnings,
     )
