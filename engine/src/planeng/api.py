@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .agents import brief_agent, ollama
 from .brief.models import DensityMix, PlanningBrief
 from .nlp.prompt import parse_prompt
 from .pipeline import generate_master_plan
@@ -26,6 +27,11 @@ app = FastAPI(title="Spatial Planning Engine", version="0.1.0")
 class PromptRequest(BaseModel):
     prompt: str = Field(min_length=8)
     cell_size: float = Field(default=10.0, ge=5.0, le=50.0)
+    use_llm: bool = Field(
+        default=True,
+        description="Use the local model to read the brief. Falls back to the "
+                    "deterministic parser when no model is reachable.",
+    )
 
 
 class BriefRequest(BaseModel):
@@ -52,17 +58,27 @@ def _run(brief: PlanningBrief, cell_size: float) -> dict:
 @app.post("/api/plan/prompt")
 def plan_from_prompt(req: PromptRequest) -> dict:
     """Generate a master plan from a natural-language brief."""
+    understanding = None
     try:
-        brief = parse_prompt(req.prompt)
+        if req.use_llm:
+            result = brief_agent.understand(req.prompt)
+            brief, understanding = result.brief, result.summary()
+        else:
+            brief = parse_prompt(req.prompt)
     except ValueError as exc:
         # A brief the engine cannot read is a user-correctable problem, not a
         # server fault. Say exactly what was missing.
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     try:
-        return _run(brief, req.cell_size)
+        payload = _run(brief, req.cell_size)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # The agent's assumptions ride alongside the plan: a planner reviewing the
+    # output needs to see what was inferred rather than read.
+    payload["understanding"] = understanding
+    return payload
 
 
 @app.post("/api/plan")
@@ -102,6 +118,19 @@ def standards(jurisdiction: str = "botswana") -> dict:
         "placeholder_paths": std.placeholder_paths(),
         "warning": std.provenance_warning(),
         "ruleset": std.data,
+    }
+
+
+@app.get("/api/agent")
+def agent_status() -> dict:
+    """What the AI layer is running on, so the UI can say so plainly."""
+    reachable = ollama.available()
+    return {
+        "reachable": reachable,
+        "host": ollama.DEFAULT_HOST,
+        "default_model": ollama.DEFAULT_MODEL,
+        "installed_models": ollama.installed_models() if reachable else [],
+        "mode": "local model" if reachable else "rule-based parser",
     }
 
 

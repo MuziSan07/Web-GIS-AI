@@ -51,6 +51,31 @@ _WORD_NUMBERS = {
 }
 
 
+def extract_numbers(prompt: str) -> dict[str, float | None]:
+    """Read the quantities out of a prompt, without judging whether they work.
+
+    Separate from `parse_prompt` because extraction and validation are
+    different questions. "10 hectares for 25,000 people" states both numbers
+    perfectly clearly; it is merely impossible. A caller asking "did the
+    planner give me an area?" must not be told "no" just because the answer
+    they gave cannot be built.
+    """
+    area = _find(rf"{_NUM}\s*(?:ha\b|hectares?)", prompt)
+    if area is None:
+        km2 = _find(rf"{_NUM}\s*(?:km2|km²|square kilometres?)", prompt)
+        area = km2 * 100 if km2 is not None else None
+
+    pop = _find(rf"(?:for|of|house|accommodate|population of)\s+{_NUM}\s*"
+                r"(?:people|persons|residents|inhabitants|population)", prompt)
+    if pop is None:
+        pop = _find(rf"{_NUM}\s*(?:people|persons|residents|inhabitants)", prompt)
+
+    plots = _find(rf"{_NUM}\s*(?:residential\s+)?(?:plots?|stands?|erven)", prompt)
+
+    return {"site_area_ha": area, "target_population": pop,
+            "target_residential_plots": plots}
+
+
 def parse_prompt(prompt: str, default_name: str = "Untitled Settlement") -> PlanningBrief:
     """Extract a structured brief from a planner's natural-language instruction."""
     text = prompt.strip()

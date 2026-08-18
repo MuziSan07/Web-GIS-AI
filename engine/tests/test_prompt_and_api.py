@@ -1,8 +1,12 @@
 """Tests for prompt parsing and the HTTP API.
 
-The prompt parser is the seam the LLM agent layer will replace. These tests
-define the contract it must satisfy, so the model-backed implementation can be
-measured against the same expectations.
+The deterministic parser is both a fallback and the numeric half of the agent's
+hybrid extraction, so these tests still define its contract.
+
+Every API call here passes `use_llm: False`. These tests cover the HTTP layer
+and the pipeline, not the model — and a suite that only passes when a 2 GB
+model is loaded takes minutes per case and fails on any machine without it.
+Agent behaviour is tested against a stubbed transport in test_agents.py.
 """
 
 from __future__ import annotations
@@ -120,6 +124,7 @@ def test_plan_from_prompt(client):
         "prompt": "Plan a 600 hectare settlement for 15,000 people "
                   "with high-density plots.",
         "cell_size": 25.0,
+        "use_llm": False,
     })
     assert res.status_code == 200
     body = res.json()
@@ -129,8 +134,9 @@ def test_plan_from_prompt(client):
 
 
 def test_unreadable_prompt_returns_422_not_500(client):
-    res = client.post("/api/plan/prompt",
-                      json={"prompt": "Build me something nice please."})
+    res = client.post("/api/plan/prompt", json={
+        "prompt": "Build me something nice please.", "use_llm": False,
+    })
     assert res.status_code == 422
     assert "Missing" in res.json()["detail"]
 
