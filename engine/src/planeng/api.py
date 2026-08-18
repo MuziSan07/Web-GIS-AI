@@ -6,6 +6,7 @@ the browser can do, an agent can do through the same library calls.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -15,12 +16,16 @@ from pydantic import BaseModel, Field
 
 from .agents import brief_agent, ollama
 from .brief.models import DensityMix, PlanningBrief
+from .export.bundle import FORMATS, export_all
 from .nlp.prompt import parse_prompt
 from .pipeline import generate_master_plan
 from .scenarios import compare as compare_scenarios
 from .standards.loader import load_standards
 
 WEB_DIR = Path(__file__).parent / "web"
+# Exports are written to disk rather than streamed: a full delivery is
+# several megabytes and takes a dozen seconds to assemble.
+EXPORT_DIR = Path(os.environ.get("PLANENG_EXPORT_DIR", "exports"))
 
 app = FastAPI(title="Spatial Planning Engine", version="0.1.0")
 
@@ -168,6 +173,63 @@ def scenarios(req: ScenarioRequest) -> dict:
             detail=f"No scenario could be generated. {result.failures}",
         )
     return result.summary()
+
+
+class ExportRequest(BaseModel):
+    prompt: str | None = Field(default=None, min_length=8)
+    site_area_ha: float | None = Field(default=None, gt=0)
+    target_population: int | None = Field(default=None, gt=0)
+    cell_size: float = Field(default=10.0, ge=5.0, le=50.0)
+    use_llm: bool = False
+    formats: dict[str, bool] | None = Field(
+        default=None,
+        description="Override which formats are written. Shapefile and file "
+                    "geodatabase are off by default: they duplicate the "
+                    "GeoPackage and are lossy.")
+
+
+@app.post("/api/export")
+def export(req: ExportRequest) -> dict:
+    """Generate a plan and write every export format as one archive.
+
+    Returns the manifest rather than the bytes. A full delivery runs to several
+    megabytes and takes long enough that streaming it from this handler would
+    tie up a worker; the archive is written to disk and its path returned.
+    """
+    unknown = set(req.formats or {}) - set(FORMATS)
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown export format(s): {', '.join(sorted(unknown))}. "
+                   f"Available: {', '.join(sorted(FORMATS))}.")
+
+    try:
+        if req.prompt:
+            brief = (brief_agent.understand(req.prompt).brief if req.use_llm
+                     else parse_prompt(req.prompt))
+        elif req.site_area_ha and req.target_population:
+            brief = PlanningBrief(
+                project_name="Export",
+                site_area_ha=req.site_area_ha,
+                target_population=req.target_population,
+            )
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide either a prompt, or both site_area_ha and "
+                       "target_population.")
+        plan = generate_master_plan(brief, cell_size=req.cell_size)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    target = EXPORT_DIR / _slug(brief.project_name)
+    result = export_all(plan, target, formats=req.formats)
+    return result.summary()
+
+
+def _slug(name: str) -> str:
+    keep = [c.lower() if c.isalnum() else "-" for c in name]
+    return "".join(keep).strip("-")[:60] or "plan"
 
 
 @app.get("/api/agent")

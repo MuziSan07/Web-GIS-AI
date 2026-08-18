@@ -327,11 +327,22 @@ def _carve(geom: Polygon, need_m2: float) -> Polygon:
 
 
 def _largest_polygon(geom) -> Polygon:
+    """The biggest polygonal part, discarding lines and points.
+
+    An overlay between two polygons can return a GeometryCollection when they
+    touch along an edge: the shared boundary comes back as a line beside the
+    polygon. Passing that through as though it were a site produced a facility
+    that was part polygon and part line, which no CAD or shapefile writer will
+    accept and which is not a piece of land in any case.
+    """
+    if geom is None or geom.is_empty:
+        return geom
     if geom.geom_type == "Polygon":
         return geom
-    if geom.geom_type == "MultiPolygon":
-        return max(geom.geoms, key=lambda g: g.area)
-    return geom
+    parts = [g for g in getattr(geom, "geoms", []) if g.geom_type == "Polygon"]
+    if not parts:
+        return Polygon()
+    return max(parts, key=lambda g: g.area)
 
 
 def _compute_coverage(plan: FacilityPlan, demand) -> None:

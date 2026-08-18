@@ -16,6 +16,11 @@ dependencies = [
     "scipy>=1.11",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
+    # Export formats. Each is the writer for one deliverable the client asked
+    # for, and each is pure enough to install without a toolchain.
+    "ezdxf>=1.3",          # DXF, for the civil and survey consultants
+    "reportlab>=4.0",      # the printed plan set
+    "ifcopenshell>=0.8",   # IFC massing model
 ]
 
 [project.scripts]

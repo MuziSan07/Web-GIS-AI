@@ -8,3 +8,7 @@ dist/
 data/raw/
 *.gpkg
 *.tif
+
+# Generated deliveries
+exports/
+*.zip
