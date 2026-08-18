@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 from rasterio import features
+from shapely import make_valid, set_precision
+from shapely.errors import GEOSException
 from shapely.geometry import LineString, MultiPolygon, Polygon, shape
 from shapely.ops import unary_union
 
@@ -16,7 +18,14 @@ from .site.model import Site
 
 
 def polygonise(arr: np.ndarray, site: Site, min_area_m2: float = 0.0) -> list[Polygon]:
-    """Boolean raster to polygons in the site CRS."""
+    """Boolean raster to polygons in the site CRS.
+
+    Every polygon is repaired before it leaves this function. Raster regions
+    that pinch to a single cell produce rings that touch themselves, which are
+    invalid; they survive rotation and buffering unnoticed and then blow up
+    deep inside an unrelated module as a GEOS side-location conflict. Repairing
+    at the source is the only place that fixes it once.
+    """
     out: list[Polygon] = []
     if not arr.any():
         return out
@@ -26,8 +35,12 @@ def polygonise(arr: np.ndarray, site: Site, min_area_m2: float = 0.0) -> list[Po
         if val != 1:
             continue
         g = shape(geom)
-        if g.area >= min_area_m2:
-            out.append(g)
+        if not g.is_valid:
+            g = g.buffer(0)
+        # A repair can split a pinched region into several polygons.
+        for part in (g.geoms if isinstance(g, MultiPolygon) else [g]):
+            if part.geom_type == "Polygon" and part.area >= min_area_m2:
+                out.append(part)
     return out
 
 
@@ -48,12 +61,35 @@ def cells_to_line(cells: list[tuple[int, int]], site: Site,
 
 
 def clean(geom):
-    """Repair a geometry and drop slivers, returning a Polygon/MultiPolygon."""
+    """Repair a geometry, returning a Polygon/MultiPolygon."""
     if geom is None or geom.is_empty:
         return geom
     if not geom.is_valid:
-        geom = geom.buffer(0)
+        geom = make_valid(geom)
     return geom
+
+
+def safe_intersection(a, b):
+    """Intersect two geometries, surviving GEOS robustness failures.
+
+    A geometry can report itself valid and still raise a side location conflict
+    during an overlay: the ring is well formed but two edges are closer than
+    floating point can resolve. This is a known class of GEOS failure and the
+    remedy is escalation - repair, then snap to a coarse grid - rather than
+    trying to guess which input is at fault. Losing a millimetre of precision
+    is irrelevant at planning scale; crashing the pipeline is not.
+    """
+    try:
+        return a.intersection(b)
+    except GEOSException:
+        pass
+
+    a2, b2 = make_valid(a), make_valid(b)
+    try:
+        return a2.intersection(b2)
+    except GEOSException:
+        # 1 mm grid. Planning geometry carries no meaning below this.
+        return set_precision(a2, 0.001).intersection(set_precision(b2, 0.001))
 
 
 def largest_parts(geom, min_area_m2: float) -> list[Polygon]:

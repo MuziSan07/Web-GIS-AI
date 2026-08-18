@@ -19,6 +19,7 @@ from pyproj import Transformer
 
 from ..allocate.zones import UNASSIGNED, AllocationResult
 from ..analysis.constraints import ConstraintResult
+from ..geom import polygonise as _polygonise
 from ..site.model import Site
 
 # Colours are defined once, here, so the map legend, the 3D view and the printed
@@ -75,20 +76,6 @@ CONSTRAINT_COLOURS = {
 def _to_wgs84(geom, src_crs: str):
     tf = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
     return shapely_transform(lambda x, y, z=None: tf.transform(x, y), geom)
-
-
-def _polygonise(arr: np.ndarray, site: Site, min_area_m2: float = 0.0):
-    """Turn a boolean raster into polygons in the site CRS."""
-    out = []
-    for geom, val in features.shapes(
-        arr.astype(np.uint8), mask=arr, transform=site.transform
-    ):
-        if val != 1:
-            continue
-        g = shape(geom)
-        if g.area >= min_area_m2:
-            out.append(g)
-    return out
 
 
 def plan_to_geojson(

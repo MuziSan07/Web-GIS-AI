@@ -13,6 +13,8 @@ not a plan.
 
 from __future__ import annotations
 
+import heapq
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -35,6 +37,28 @@ ALLOCATABLE = [
     "institutional",
     "recreation_open_space",
 ]
+
+# Uses grown as contiguous precincts rather than scattered cell by cell.
+#
+# Institutional only, on measurement. Institutional land must hold whole
+# facilities - a 5 ha secondary school cannot sit on fragments - so growing it
+# as precincts is what makes siting work. Clustering the other uses as well was
+# tried and rejected: it shattered residential land into 292 patches instead of
+# 125 and cost a third of the plot yield, while placing no additional facility.
+#
+#   greedy only          2,374 plots   43.4% net-to-gross   37 sited, 1 unplaced
+#   institutional only   2,489 plots   43.8% net-to-gross   38 sited, 0 unplaced
+#   all four uses        1,814 plots   29.0% net-to-gross   38 sited, 0 unplaced
+#
+CLUSTERED = ("institutional",)
+
+# Facility categories that must fit on land of a given use, used to size how
+# large a precinct of that use needs to be.
+_USE_CATEGORIES = {
+    "institutional": ("education", "health", "safety", "community", "civic",
+                      "utilities"),
+    "recreation_open_space": ("recreation",),
+}
 
 
 @dataclass
@@ -96,17 +120,41 @@ def allocate_land(
     uses = [u for u in ALLOCATABLE if quotas.get(u, 0) > 0]
     labels = np.full(site.shape, UNASSIGNED, dtype=np.int16)
 
-    # -- greedy assignment ------------------------------------------------
+    # -- 1. clustered uses ------------------------------------------------
+    # Non-residential uses are grown as contiguous regions before anything
+    # else. Allocating them cell-by-cell alongside residential scatters them:
+    # institutional land arrived as 38 fragments averaging under a hectare,
+    # and a 5 ha secondary school cannot be sited on any of them. Real plans
+    # consolidate these uses into precincts, and so does this.
+    available = buildable.copy()
+    for use in CLUSTERED:
+        if use not in uses:
+            continue
+        used = _grow_regions(
+            site, suitability.surfaces[use], available,
+            quota_cells=quotas[use],
+            min_patch_cells=_min_patch_cells(site, programme, use),
+        )
+        labels[used] = uses.index(use)
+        available &= ~used
+
+    # -- 2. everything else, greedily -------------------------------------
     # Rank every (cell, use) pair by suitability and take them in order. A cell
     # is claimed once; a use stops claiming when its quota is spent.
-    idx = np.flatnonzero(buildable.ravel())
-    scores = np.stack([suitability.surfaces[u].ravel()[idx] for u in uses])  # (u, n)
+    remaining_uses = [u for u in uses if u not in CLUSTERED]
+    if not remaining_uses:
+        return _finalise(site, labels, uses, targets_ha, scale, suitability)
+
+    idx = np.flatnonzero(available.ravel())
+    if idx.size == 0:
+        return _finalise(site, labels, uses, targets_ha, scale, suitability)
+    scores = np.stack([suitability.surfaces[u].ravel()[idx] for u in remaining_uses])
 
     best_use = scores.argmax(axis=0)
     best_score = scores.max(axis=0)
     order = np.argsort(-best_score)          # strongest matches settle first
 
-    remaining = {i: quotas[u] for i, u in enumerate(uses)}
+    remaining = {i: quotas[u] for i, u in enumerate(remaining_uses)}
     flat_labels = np.full(idx.size, UNASSIGNED, dtype=np.int16)
 
     for pos in order:
@@ -126,12 +174,24 @@ def allocate_land(
                     remaining[int(u)] -= 1
                     break
 
-    labels.ravel()[idx] = flat_labels
+    # The greedy pass works on its own reduced use list, so map those local
+    # indices back onto the full one before writing them into the label grid.
+    mapped = np.full(idx.size, UNASSIGNED, dtype=np.int16)
+    for local, use in enumerate(remaining_uses):
+        mapped[flat_labels == local] = uses.index(use)
+    labels.ravel()[idx] = mapped
 
-    # -- compactness ------------------------------------------------------
-    labels = _compact(labels, buildable, passes=compactness_passes)
+    # Compact only the greedily-assigned land. The grown precincts are already
+    # contiguous, and letting the majority filter nibble at their edges would
+    # undo the consolidation they exist to provide.
+    labels = _compact(labels, available, passes=compactness_passes)
 
-    # -- report -----------------------------------------------------------
+    return _finalise(site, labels, uses, targets_ha, scale, suitability)
+
+
+def _finalise(site: Site, labels: np.ndarray, uses: list[str],
+              targets_ha: dict[str, float], scale: float,
+              suitability: SuitabilityResult) -> AllocationResult:
     res = AllocationResult(labels=labels, uses=uses)
     for i, use in enumerate(uses):
         m = labels == i
@@ -141,6 +201,103 @@ def allocate_land(
             float(suitability.surfaces[use][m].mean()) if m.any() else 0.0
         )
     return res
+
+
+def _min_patch_cells(site: Site, programme: Programme, use: str) -> int:
+    """How large a precinct of this use has to be to be useful.
+
+    Sized from the largest facility that must fit on it, with headroom for the
+    road reserves later cut out of the block. A precinct smaller than its
+    largest intended tenant is land that can never serve its purpose.
+    """
+    categories = _USE_CATEGORIES.get(use)
+    if categories:
+        largest = max(
+            (f.site_area_ha for f in programme.facilities
+             if f.category in categories),
+            default=0.0,
+        )
+        if largest > 0:
+            return site.ha_to_cells(largest * 1.6)
+    # Commercial and industrial have no facility schedule, but a coherent
+    # quarter rather than a scatter of shops is still the goal.
+    return site.ha_to_cells(3.0)
+
+
+def _grow_regions(site: Site, surface: np.ndarray, available: np.ndarray,
+                  quota_cells: int, min_patch_cells: int) -> np.ndarray:
+    """Grow contiguous precincts from the best available seeds."""
+    chosen = np.zeros(site.shape, dtype=bool)
+    if quota_cells <= 0:
+        return chosen
+
+    rows, cols = site.shape
+    free = available.copy()
+    placed = 0
+
+    # Successive seeds land next to the patch just placed, because that is
+    # where suitability is still highest, and the precincts coalesce into one
+    # blob. A settlement wants its schools and clinics distributed, so seeds
+    # are penalised for proximity to precincts of the same use already sited.
+    separation_m = 3.0 * math.sqrt(max(min_patch_cells, 1) * site.cell_area_m2)
+    separation_cells = max(1.0, separation_m / site.cell_size)
+
+    # Bounded so a pathological surface cannot spin: each iteration either
+    # places a patch or burns a seed.
+    for _ in range(1000):
+        if placed >= quota_cells:
+            break
+
+        if chosen.any():
+            d = ndimage.distance_transform_edt(~chosen)
+            spread = np.clip(d / separation_cells, 0.0, 1.0)
+        else:
+            spread = 1.0
+
+        masked = np.where(free, surface * (0.35 + 0.65 * spread), -np.inf)
+        if not np.isfinite(masked).any():
+            break
+        seed = np.unravel_index(int(np.argmax(masked)), site.shape)
+        if not free[seed]:
+            break
+
+        target = min(quota_cells - placed, max(min_patch_cells, 1))
+        # Don't leave a stub too small to be a usable precinct behind.
+        if 0 < quota_cells - placed - target < min_patch_cells * 0.5:
+            target = quota_cells - placed
+
+        region = _grow_one(surface, free, seed, target, rows, cols)
+        if not region:
+            free[seed] = False
+            continue
+
+        for r, c in region:
+            chosen[r, c] = True
+            free[r, c] = False
+        placed += len(region)
+
+    return chosen
+
+
+def _grow_one(surface: np.ndarray, free: np.ndarray, seed, target: int,
+              rows: int, cols: int) -> list[tuple[int, int]]:
+    """Best-first expansion from a seed, so a precinct is sited well and whole."""
+    region: list[tuple[int, int]] = []
+    seen = {seed}
+    heap = [(-float(surface[seed]), seed)]
+
+    while heap and len(region) < target:
+        _, (r, c) = heapq.heappop(heap)
+        if not free[r, c]:
+            continue
+        region.append((r, c))
+        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols \
+                    and (nr, nc) not in seen and free[nr, nc]:
+                seen.add((nr, nc))
+                heapq.heappush(heap, (-float(surface[nr, nc]), (nr, nc)))
+    return region
 
 
 def _compact(labels: np.ndarray, buildable: np.ndarray, passes: int) -> np.ndarray:

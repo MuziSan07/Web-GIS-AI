@@ -26,6 +26,7 @@ from shapely.geometry import Point, Polygon, box
 
 from ..allocate.zones import AllocationResult
 from ..brief.derive import Programme
+from ..geom import clean, safe_intersection
 from ..roads.blocks import Block, BlockLayout
 from ..site.model import Site
 from ..standards.loader import Standards
@@ -160,7 +161,7 @@ def site_facilities(
             placed.append(facility)
             plan.facilities.append(facility)
 
-            remainder = available[block_id].difference(geom)
+            remainder = clean(available[block_id].difference(geom))
             if remainder.is_empty or remainder.area < 200:
                 available.pop(block_id, None)
             else:
@@ -264,6 +265,14 @@ def _carve(geom: Polygon, need_m2: float) -> Polygon:
     Cut as a rectangle aligned to the block's own axis so facility sites read as
     erven rather than as circles stamped on the plan.
     """
+    # Blocks arrive here after repeated difference operations as earlier
+    # facilities were carved out of them, and those can leave self-touching
+    # rings. Rotating and intersecting an invalid ring raises a GEOS side
+    # location conflict far from the cause, so validate on entry.
+    geom = _largest_polygon(clean(geom))
+    if geom.is_empty or geom.geom_type != "Polygon":
+        return geom
+
     if geom.area <= need_m2 * 1.25:
         return geom
 
@@ -286,12 +295,13 @@ def _carve(geom: Polygon, need_m2: float) -> Polygon:
     # Grow a strip from one end until it holds the required area.
     height = min(maxy - miny, need_m2 / width)
     for _ in range(24):
-        strip = box(minx, miny, maxx, miny + height).intersection(local)
+        strip = safe_intersection(box(minx, miny, maxx, miny + height), local)
         if strip.area >= need_m2 or height >= (maxy - miny):
             break
         height *= 1.18
 
-    strip = box(minx, miny, maxx, miny + min(height, maxy - miny)).intersection(local)
+    strip = safe_intersection(
+        box(minx, miny, maxx, miny + min(height, maxy - miny)), local)
     if strip.is_empty:
         return geom
     return _largest_polygon(affinity.rotate(strip, angle, origin=origin))
