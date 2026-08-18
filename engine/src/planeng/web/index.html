@@ -225,7 +225,7 @@ function draw(fc) {
   const zones = pick("zone"), cons = pick("constraint"), bound = pick("boundary");
   const exist = pick("existing"), roads = pick("road");
   const blocks = pick("block"), reserve = pick("road_reserve");
-  const parcels = pick("parcel");
+  const parcels = pick("parcel"), facilities = pick("facility");
 
   const set = (id, data) => {
     if (map.getSource(id)) map.getSource(id).setData(data);
@@ -233,7 +233,7 @@ function draw(fc) {
   };
   set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
   set("roads", roads); set("blocks", blocks); set("reserve", reserve);
-  set("parcels", parcels);
+  set("parcels", parcels); set("facilities", facilities);
 
   if (!map.getLayer("zones-fill")) {
     // Zoning sits underneath as context; the blocks carved out by the road
@@ -259,11 +259,31 @@ function draw(fc) {
     map.addLayer({id: "roads-line", type: "line", source: "roads",
       paint: {"line-color": ["get", "colour"], "line-width": ["get", "width_px"],
               "line-opacity": 0.95}});
+    map.addLayer({id: "fac-fill", type: "fill", source: "facilities",
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.92}});
+    map.addLayer({id: "fac-line", type: "line", source: "facilities",
+      paint: {"line-color": "#0b0e14", "line-width": 0.8}});
+    map.addLayer({id: "fac-label", type: "symbol", source: "facilities",
+      minzoom: 13.5,
+      layout: {"text-field": ["get", "key"], "text-size": 10,
+               "text-offset": [0, 0.6], "text-allow-overlap": false},
+      paint: {"text-color": "#e6eaf2", "text-halo-color": "#0b0e14",
+              "text-halo-width": 1.4}});
     map.addLayer({id: "exist-line", type: "line", source: "exist",
       paint: {"line-color": "#c8ccd6", "line-width": 2, "line-dasharray": [3, 2]}});
     map.addLayer({id: "bound-line", type: "line", source: "bound",
       paint: {"line-color": "#e6eaf2", "line-width": 1.8}});
 
+    map.on("click", "fac-fill", e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({closeButton: false})
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font:12px system-ui;color:#111">
+          <b>${p.key.replace(/_/g," ")}</b><br>${p.category}<br>
+          ${fmt(p.area_ha, 2)} ha${p.catchment_m > 0
+            ? `<br>catchment ${fmt(p.catchment_m, 0)} m` : ""}</div>`)
+        .addTo(map);
+    });
     map.on("click", "parcels-fill", e => {
       const p = e.features[0].properties;
       new maplibregl.Popup({closeButton: false})
@@ -302,7 +322,7 @@ function draw(fc) {
           <span style="color:#555">${p.rule}</span></div>`)
         .addTo(map);
     });
-    ["blocks-fill","cons-fill","roads-line"].forEach(l => {
+    ["blocks-fill","cons-fill","roads-line","fac-fill","parcels-fill"].forEach(l => {
       map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
       map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
     });
@@ -394,6 +414,19 @@ function renderReport(r, brief) {
       <td class="num muted">${(targetByBand[b.band] || 0).toLocaleString()}</td>
       <td class="num">${fmt(b.mean_plot_m2, 0)}</td></tr>`).join("");
 
+  const reqByKey = Object.fromEntries(r.facilities.map(f => [f.key, f.count]));
+  const sitedRows = r.facility_siting.by_type.map(t => {
+    const cov = t.coverage_pct == null ? "–" : fmt(t.coverage_pct, 0) + "%";
+    const covColour = t.coverage_pct == null ? "var(--ink-dim)"
+      : t.coverage_pct < 70 ? "var(--warn)" : "var(--ink)";
+    const shortfall = t.unplaced > 0;
+    return `<tr>
+      <td>${t.key.replace(/_/g," ")}</td>
+      <td class="num muted">${reqByKey[t.key] || t.sited}</td>
+      <td class="num" style="color:${shortfall ? "var(--warn)" : "var(--ink)"}">${t.sited}</td>
+      <td class="num" style="color:${covColour}">${cov}</td></tr>`;
+  }).join("");
+
   const i = r.infrastructure;
   const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
       <td>${c.constraint.replace(/_/g," ")}</td>
@@ -452,6 +485,14 @@ function renderReport(r, brief) {
     <section class="pad"><h2>Constraints applied</h2>
       <table><thead><tr><th>Constraint</th><th>ha</th><th>Rule</th></tr></thead>
       <tbody>${cons}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Facility siting</h2>
+      <table><thead><tr><th>Facility</th><th>Req</th><th>Sited</th><th>Coverage</th></tr></thead>
+      <tbody>${sitedRows}</tbody></table>
+      <div class="kv" style="margin-top:8px"><span>Sited</span><span>${r.facility_siting.sited_total}</span></div>
+      <div class="kv"><span>Could not be placed</span><span style="color:${r.facility_siting.unplaced_total ? "var(--warn)" : "var(--ink-dim)"}">${r.facility_siting.unplaced_total}</span></div>
+      <p class="muted" style="font-size:11px;margin:8px 0 0">Coverage is the share of dwellings within the catchment distance the ruleset requires.</p>
     </section>
 
     <section class="pad"><h2>Facility schedule</h2>

@@ -19,6 +19,7 @@ from .brief.models import PlanningBrief
 from .export.geojson import plan_to_geojson
 from .roads.blocks import BlockLayout, build_blocks, reconcile_plots
 from .cadastre.parcels import CadastralLayout, subdivide
+from .facilities.siting import FacilityPlan, site_facilities
 from .roads.network import RoadNetwork, generate_network
 from .site.model import Site
 from .site.synthetic import generate_site
@@ -36,6 +37,7 @@ class MasterPlan:
     network: RoadNetwork
     blocks: BlockLayout
     cadastre: CadastralLayout
+    facility_plan: FacilityPlan
     standards: Standards
     timings_ms: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
@@ -43,7 +45,8 @@ class MasterPlan:
     def to_geojson(self) -> dict:
         return plan_to_geojson(self.site, self.constraints, self.allocation,
                                network=self.network, blocks=self.blocks,
-                               cadastre=self.cadastre)
+                               cadastre=self.cadastre,
+                               facility_plan=self.facility_plan)
 
     def report(self) -> dict:
         """The machine-readable plan summary, used by the API and the UI."""
@@ -92,6 +95,7 @@ class MasterPlan:
             "roads": self.network.summary(self.site),
             "blocks": self.blocks.summary(),
             "cadastre": self.cadastre.summary(),
+            "facility_siting": self.facility_plan.summary(),
             "infrastructure": self.programme.infrastructure,
             "warnings": self.warnings,
             "ruleset": {
@@ -142,11 +146,15 @@ def generate_master_plan(
                   lambda: build_blocks(site, std, allocation, network, programme))
     cadastre = step("subdivide",
                     lambda: subdivide(site, std, blocks, network, programme))
+    facility_plan = step("site_facilities",
+                         lambda: site_facilities(site, std, programme, blocks,
+                                                 allocation))
 
     warnings = list(programme.warnings)
     warnings.extend(network.warnings)
     warnings.extend(blocks.warnings)
     warnings.extend(cadastre.warnings)
+    warnings.extend(facility_plan.warnings)
     if (msg := reconcile_plots(blocks, programme.total_dwellings)) is not None:
         warnings.append(msg)
 
@@ -165,5 +173,6 @@ def generate_master_plan(
     return MasterPlan(
         brief=brief, site=site, programme=programme, constraints=constraints,
         suitability=suitability, allocation=allocation, network=network,
-        blocks=blocks, cadastre=cadastre, standards=std, timings_ms=timings, warnings=warnings,
+        blocks=blocks, cadastre=cadastre, facility_plan=facility_plan,
+        standards=std, timings_ms=timings, warnings=warnings,
     )

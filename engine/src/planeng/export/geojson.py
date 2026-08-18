@@ -47,6 +47,16 @@ ROAD_WIDTHS_PX = {
     "local_access": 0.8,
 }
 
+FACILITY_COLOURS = {
+    "education": "#3E7CB1",
+    "health": "#C24E6B",
+    "safety": "#B5533C",
+    "community": "#7A6BB5",
+    "civic": "#8A7A4E",
+    "recreation": "#3F8F55",
+    "utilities": "#B07D3A",
+}
+
 BAND_COLOURS = {
     "low": "#F0D79B",
     "medium": "#E8B84B",
@@ -88,6 +98,7 @@ def plan_to_geojson(
     network=None,
     blocks=None,
     cadastre=None,
+    facility_plan=None,
     min_polygon_m2: float = 400.0,
 ) -> dict:
     """Assemble the whole plan as one FeatureCollection ready for MapLibre."""
@@ -196,6 +207,23 @@ def plan_to_geojson(
                     "colour": BAND_COLOURS.get(p.band, "#E8B84B"),
                     "area_m2": round(p.area_m2, 1),
                     "frontage_m": p.frontage_m,
+                },
+            })
+
+    # -- sited facilities -------------------------------------------------
+    if facility_plan is not None:
+        for f in facility_plan.facilities:
+            features_out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(f.geometry, site.crs)),
+                "properties": {
+                    "layer": "facility",
+                    "facility_id": f.facility_id,
+                    "key": f.key,
+                    "category": f.category,
+                    "colour": FACILITY_COLOURS.get(f.category, "#4A7BA7"),
+                    "area_ha": round(f.area_ha, 3),
+                    "catchment_m": f.catchment_m,
                 },
             })
 
