@@ -1,0 +1,29 @@
+[project]
+name = "planeng"
+version = "0.1.0"
+description = "AI-assisted spatial planning engine for town development master planning"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "geopandas>=1.0",
+    "rasterio>=1.4",
+    "networkx>=3.0",
+    "ortools>=9.10",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+planeng = "planeng.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+planeng = ["standards/*.yaml"]

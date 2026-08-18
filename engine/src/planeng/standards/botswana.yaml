@@ -1,0 +1,368 @@
+# =============================================================================
+# PLANNING STANDARDS AND DEVELOPMENT CONTROL RULESET
+# Jurisdiction: Botswana
+# =============================================================================
+#
+#   *** EVERY VALUE IN THIS FILE IS A PLACEHOLDER. ***
+#
+# These figures are drawn from common Southern African planning practice so the
+# engine can run end-to-end today. They have NOT been validated against Botswana
+# statutory standards and MUST be replaced, line by line, by the project's
+# Registered Town Planner before any output is presented as compliant.
+#
+# Every rule carries a `source` field. Until a rule cites a real document and
+# clause, it is marked PLACEHOLDER and the engine flags it in every report it
+# produces. Do not remove the flag by editing it out — edit the value and the
+# source together.
+#
+# This file is deliberately data, not code, so that a planner can review and
+# amend it without a developer.
+# =============================================================================
+
+meta:
+  jurisdiction: Botswana
+  ruleset_version: "0.1.0-placeholder"
+  status: PLACEHOLDER            # -> "validated" once the planner signs it off
+  validated_by: null
+  validated_date: null
+  notes: >
+    Replace with values from the Botswana Town and Country Planning Act,
+    the Development Control Code, and the applicable Development Plan.
+
+# -----------------------------------------------------------------------------
+# Demographic assumptions
+# -----------------------------------------------------------------------------
+demographics:
+  persons_per_household:
+    value: 3.5
+    source: PLACEHOLDER
+    note: Confirm against latest Botswana Population and Housing Census.
+  household_growth_allowance:
+    value: 1.05
+    source: PLACEHOLDER
+    note: Vacancy and churn allowance applied to dwelling demand.
+
+# -----------------------------------------------------------------------------
+# Residential plot standards
+# -----------------------------------------------------------------------------
+residential:
+  densities:
+    low:
+      plot_area_min_m2: 1000
+      plot_area_typical_m2: 1500
+      plot_area_max_m2: 2500
+      dwellings_per_plot: 1
+      frontage_min_m: 25
+      coverage_max_pct: 40
+      far_max: 0.6
+      storeys_max: 2
+      setback_front_m: 6.0
+      setback_side_m: 3.0
+      setback_rear_m: 3.0
+      source: PLACEHOLDER
+    medium:
+      plot_area_min_m2: 450
+      plot_area_typical_m2: 600
+      plot_area_max_m2: 1000
+      dwellings_per_plot: 1
+      frontage_min_m: 18
+      coverage_max_pct: 50
+      far_max: 1.0
+      storeys_max: 3
+      setback_front_m: 4.5
+      setback_side_m: 2.0
+      setback_rear_m: 3.0
+      source: PLACEHOLDER
+    high:
+      plot_area_min_m2: 250
+      plot_area_typical_m2: 350
+      plot_area_max_m2: 450
+      dwellings_per_plot: 1
+      frontage_min_m: 12
+      coverage_max_pct: 60
+      far_max: 1.5
+      storeys_max: 4
+      setback_front_m: 3.0
+      setback_side_m: 1.5
+      setback_rear_m: 2.0
+      source: PLACEHOLDER
+
+  # Share of total dwellings assigned to each density band. Must sum to 1.0.
+  default_density_mix:
+    low: 0.20
+    medium: 0.50
+    high: 0.30
+    source: PLACEHOLDER
+
+  # Gross-to-net factor: proportion of a residential neighbourhood consumed by
+  # internal access roads, verges and incidental open space.
+  net_to_gross_factor:
+    value: 0.72
+    source: PLACEHOLDER
+
+# -----------------------------------------------------------------------------
+# Road hierarchy and reserves
+# -----------------------------------------------------------------------------
+roads:
+  hierarchy:
+    primary_arterial:
+      reserve_width_m: 40
+      carriageway_m: 14.0
+      design_speed_kph: 80
+      max_gradient_pct: 6
+      junction_spacing_min_m: 800
+      source: PLACEHOLDER
+    district_distributor:
+      reserve_width_m: 30
+      carriageway_m: 10.5
+      design_speed_kph: 60
+      max_gradient_pct: 8
+      junction_spacing_min_m: 400
+      source: PLACEHOLDER
+    collector:
+      reserve_width_m: 20
+      carriageway_m: 7.5
+      design_speed_kph: 50
+      max_gradient_pct: 10
+      junction_spacing_min_m: 200
+      source: PLACEHOLDER
+    local_access:
+      reserve_width_m: 13
+      carriageway_m: 6.0
+      design_speed_kph: 30
+      max_gradient_pct: 12
+      junction_spacing_min_m: 60
+      source: PLACEHOLDER
+    cul_de_sac:
+      reserve_width_m: 10
+      carriageway_m: 5.5
+      design_speed_kph: 20
+      max_gradient_pct: 12
+      max_length_m: 150
+      turning_radius_m: 12
+      source: PLACEHOLDER
+
+  block:
+    length_max_m: 250
+    length_typical_m: 180
+    depth_typical_m: 60
+    source: PLACEHOLDER
+
+# -----------------------------------------------------------------------------
+# Social and community facility provision
+#   threshold_population : one facility per N people
+#   site_area_ha         : land to reserve per facility
+#   catchment_m          : maximum walking / service distance
+# -----------------------------------------------------------------------------
+facilities:
+  education:
+    primary_school:
+      threshold_population: 5000
+      site_area_ha: 2.0
+      catchment_m: 1000
+      min_count: 1
+      source: PLACEHOLDER
+    secondary_school:
+      threshold_population: 15000
+      site_area_ha: 5.0
+      catchment_m: 2500
+      min_count: 1
+      source: PLACEHOLDER
+    pre_school:
+      threshold_population: 2500
+      site_area_ha: 0.3
+      catchment_m: 800
+      min_count: 1
+      source: PLACEHOLDER
+
+  health:
+    health_post:
+      threshold_population: 5000
+      site_area_ha: 0.2
+      catchment_m: 2000
+      min_count: 1
+      source: PLACEHOLDER
+    clinic:
+      threshold_population: 10000
+      site_area_ha: 0.5
+      catchment_m: 3000
+      min_count: 1
+      source: PLACEHOLDER
+    primary_hospital:
+      threshold_population: 100000
+      site_area_ha: 5.0
+      catchment_m: 15000
+      min_count: 0
+      source: PLACEHOLDER
+
+  safety:
+    police_station:
+      threshold_population: 25000
+      site_area_ha: 1.0
+      catchment_m: 5000
+      min_count: 1
+      source: PLACEHOLDER
+    fire_station:
+      threshold_population: 50000
+      site_area_ha: 1.0
+      catchment_m: 5000          # driven by response time, not walking distance
+      min_count: 1
+      source: PLACEHOLDER
+
+  community:
+    community_hall:
+      threshold_population: 10000
+      site_area_ha: 0.5
+      catchment_m: 2000
+      min_count: 1
+      source: PLACEHOLDER
+    kgotla:
+      threshold_population: 8000
+      site_area_ha: 0.4
+      catchment_m: 2000
+      min_count: 1
+      source: PLACEHOLDER
+      note: Customary assembly place. Confirm provision norm with the planner.
+    place_of_worship:
+      threshold_population: 5000
+      site_area_ha: 0.3
+      catchment_m: 1500
+      min_count: 1
+      source: PLACEHOLDER
+    library:
+      threshold_population: 25000
+      site_area_ha: 0.3
+      catchment_m: 3000
+      min_count: 0
+      source: PLACEHOLDER
+
+  recreation:
+    neighbourhood_park:
+      threshold_population: 2500
+      site_area_ha: 0.5
+      catchment_m: 500
+      min_count: 1
+      source: PLACEHOLDER
+    district_park:
+      threshold_population: 20000
+      site_area_ha: 4.0
+      catchment_m: 2000
+      min_count: 1
+      source: PLACEHOLDER
+    sports_field:
+      threshold_population: 15000
+      site_area_ha: 3.0
+      catchment_m: 2500
+      min_count: 1
+      source: PLACEHOLDER
+
+  civic:
+    cemetery:
+      ha_per_1000_population: 0.5
+      catchment_m: 5000
+      min_site_area_ha: 2.0
+      source: PLACEHOLDER
+      note: Sized over the plan period, not instantaneous population.
+    market:
+      threshold_population: 15000
+      site_area_ha: 1.0
+      catchment_m: 2500
+      min_count: 1
+      source: PLACEHOLDER
+
+# -----------------------------------------------------------------------------
+# Engineering infrastructure demand factors
+# -----------------------------------------------------------------------------
+infrastructure:
+  water:
+    domestic_demand_lpcd: 150
+    peak_factor: 2.5
+    reservoir_storage_hours: 48
+    fire_flow_l_per_s: 30
+    source: PLACEHOLDER
+  sewer:
+    return_factor: 0.80
+    peak_factor: 2.5
+    treatment_works_buffer_m: 500
+    source: PLACEHOLDER
+  stormwater:
+    design_storm_years: 10
+    major_system_storm_years: 100
+    source: PLACEHOLDER
+  electricity:
+    admd_kva_per_household: 1.5
+    substation_threshold_population: 10000
+    substation_site_area_ha: 0.25
+    source: PLACEHOLDER
+  solid_waste:
+    generation_kg_per_capita_day: 0.7
+    landfill_min_area_ha: 10.0
+    landfill_buffer_from_residential_m: 500
+    transfer_station_threshold_population: 25000
+    source: PLACEHOLDER
+
+# -----------------------------------------------------------------------------
+# Environmental and siting constraints
+# -----------------------------------------------------------------------------
+environment:
+  buffers:
+    wetland_m: 50
+    watercourse_m: 30
+    borehole_wellfield_m: 500
+    protected_area_m: 100
+    powerline_servitude_m: 31
+    source: PLACEHOLDER
+  slope:
+    residential_max_pct: 12.5
+    commercial_max_pct: 8.0
+    industrial_max_pct: 5.0
+    road_max_pct: 12.0
+    undevelopable_above_pct: 20.0
+    source: PLACEHOLDER
+  flood:
+    no_development_return_period_years: 100
+    source: PLACEHOLDER
+
+# -----------------------------------------------------------------------------
+# Indicative land budget as a share of gross developable area.
+# Used as an optimiser target, not a hard constraint.
+# -----------------------------------------------------------------------------
+land_budget:
+  residential_pct: 58
+  commercial_pct: 5
+  industrial_pct: 6
+  institutional_pct: 8
+  recreation_open_space_pct: 12
+  circulation_pct: 9
+  utilities_pct: 2
+  source: PLACEHOLDER
+  note: >
+    Shares sum to 100. IMPORTANT: circulation_pct covers ONLY the settlement-level
+    network (arterial, district distributor and collector reserves). Internal
+    neighbourhood streets are already captured inside
+    residential.net_to_gross_factor, so a full 18-22% figure here would double
+    count them and inflate land demand by roughly 10% of gross site area.
+
+# -----------------------------------------------------------------------------
+# Land use compatibility matrix, used by the development control engine.
+# Values: compatible | buffer_required | incompatible
+# -----------------------------------------------------------------------------
+compatibility:
+  residential:
+    residential: compatible
+    commercial: compatible
+    institutional: compatible
+    recreation: compatible
+    light_industrial: buffer_required
+    heavy_industrial: incompatible
+    landfill: incompatible
+    cemetery: buffer_required
+    wastewater_treatment: incompatible
+  commercial:
+    light_industrial: compatible
+    heavy_industrial: buffer_required
+    landfill: incompatible
+  institutional:
+    light_industrial: buffer_required
+    heavy_industrial: incompatible
+    landfill: incompatible
