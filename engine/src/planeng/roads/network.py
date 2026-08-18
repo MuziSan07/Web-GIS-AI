@@ -100,6 +100,7 @@ def generate_network(
     std: Standards,
     constraints: ConstraintResult,
     allocation: AllocationResult,
+    programme=None,
 ) -> RoadNetwork:
     net = RoadNetwork()
     slope = constraints.slope
@@ -183,7 +184,8 @@ def generate_network(
         _add(net, site, cells, "collector", reserve["collector"], on_network)
 
     # -- 5. local access grid --------------------------------------------
-    _add_local_grid(net, site, std, allocation, constraints, reserve["local_access"])
+    _add_local_grid(net, site, std, allocation, constraints,
+                    reserve["local_access"], programme)
 
     # -- 6. connectivity check -------------------------------------------
     _check_connectivity(net, site, buildable, np.isfinite(cost_dist), access)
@@ -323,17 +325,20 @@ def _best_attachment(dist: np.ndarray, on_network: np.ndarray,
 
 def _add_local_grid(net: RoadNetwork, site: Site, std: Standards,
                     allocation: AllocationResult, constraints: ConstraintResult,
-                    width: float) -> None:
+                    width: float, programme=None) -> None:
     """Lay a street grid inside residential land to form blocks.
 
-    Spacing comes from the block standard, so block sizes are a ruleset decision
-    rather than a hardcoded aesthetic.
+    Street spacing is driven by the plot depth the brief actually calls for, not
+    by a single block-depth constant. The constant assumes low-density plots;
+    applying it to a high-density brief produces blocks far deeper than two rows
+    of plots, so the interiors cannot be reached and the layout under-delivers
+    against the dwelling schedule.
     """
     if "residential" not in allocation.uses:
         return
 
     block_len = std.get("roads.block.length_typical_m")
-    block_depth = std.get("roads.block.depth_typical_m")
+    block_depth = _target_plot_depth(std, programme)
     # Two plot depths back to back, plus the street between them.
     cross_spacing = 2 * block_depth + width
 
@@ -371,9 +376,14 @@ def _add_local_grid(net: RoadNetwork, site: Site, std: Standards,
                 seg = LineString([(ax, ay), (bx, by)]).intersection(area)
                 if seg.is_empty:
                     continue
+                # A street earns its place if it serves a handful of plots.
+                # Filtering on the full block length instead drops streets in
+                # narrow and irregular parts of the site, and those areas then
+                # survive as blocks too deep to subdivide from their frontages.
+                min_useful = max(25.0, cross_spacing * 0.5)
                 parts = list(seg.geoms) if isinstance(seg, MultiLineString) else [seg]
                 for part in parts:
-                    if part.geom_type == "LineString" and part.length >= block_len * 0.4:
+                    if part.geom_type == "LineString" and part.length >= min_useful:
                         net.segments.append(RoadSegment(part, "local_access", width))
 
 
@@ -410,6 +420,27 @@ def _check_connectivity(net: RoadNetwork, site: Site, buildable: np.ndarray,
         f"cut off from the road network by constraint buffers. Crossings or "
         f"culverts are required to develop it, or it should be re-designated."
     )
+
+
+def _target_plot_depth(std: Standards, programme) -> float:
+    """Area-weighted plot depth for this brief, in metres.
+
+    Depth follows from the standard itself: a plot of the typical area with the
+    minimum frontage is exactly this deep.
+    """
+    def depth_of(band: str) -> float:
+        spec = std.get(f"residential.densities.{band}")
+        return spec["plot_area_typical_m2"] / spec["frontage_min_m"]
+
+    if programme is not None and getattr(programme, "dwellings", None):
+        total = sum(d.dwellings for d in programme.dwellings)
+        if total > 0:
+            return sum(d.dwellings * depth_of(d.band)
+                       for d in programme.dwellings) / total
+
+    mix = {k: v for k, v in std.get("residential.default_density_mix").items()
+           if isinstance(v, (int, float))}
+    return sum(depth_of(band) * share for band, share in mix.items())
 
 
 def _spine_bearing(net: RoadNetwork) -> float:

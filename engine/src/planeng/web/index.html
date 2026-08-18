@@ -225,6 +225,7 @@ function draw(fc) {
   const zones = pick("zone"), cons = pick("constraint"), bound = pick("boundary");
   const exist = pick("existing"), roads = pick("road");
   const blocks = pick("block"), reserve = pick("road_reserve");
+  const parcels = pick("parcel");
 
   const set = (id, data) => {
     if (map.getSource(id)) map.getSource(id).setData(data);
@@ -232,6 +233,7 @@ function draw(fc) {
   };
   set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
   set("roads", roads); set("blocks", blocks); set("reserve", reserve);
+  set("parcels", parcels);
 
   if (!map.getLayer("zones-fill")) {
     // Zoning sits underneath as context; the blocks carved out by the road
@@ -246,6 +248,14 @@ function draw(fc) {
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.88}});
     map.addLayer({id: "blocks-line", type: "line", source: "blocks",
       paint: {"line-color": "#11151d", "line-width": 0.35, "line-opacity": 0.7}});
+    // Individual plots only resolve when zoomed in; below that they read as
+    // noise and the block structure is the useful level of detail.
+    map.addLayer({id: "parcels-fill", type: "fill", source: "parcels",
+      minzoom: 14,
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.9}});
+    map.addLayer({id: "parcels-line", type: "line", source: "parcels",
+      minzoom: 15,
+      paint: {"line-color": "#6b5320", "line-width": 0.4, "line-opacity": 0.8}});
     map.addLayer({id: "roads-line", type: "line", source: "roads",
       paint: {"line-color": ["get", "colour"], "line-width": ["get", "width_px"],
               "line-opacity": 0.95}});
@@ -254,6 +264,15 @@ function draw(fc) {
     map.addLayer({id: "bound-line", type: "line", source: "bound",
       paint: {"line-color": "#e6eaf2", "line-width": 1.8}});
 
+    map.on("click", "parcels-fill", e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({closeButton: false})
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font:12px system-ui;color:#111">
+          <b>Plot ${p.plot_number}</b><br>${p.band} density<br>
+          ${fmt(p.area_m2, 0)} m&sup2;<br>${fmt(p.frontage_m, 1)} m frontage</div>`)
+        .addTo(map);
+    });
     map.on("click", "blocks-fill", e => {
       const p = e.features[0].properties;
       new maplibregl.Popup({closeButton: false})
@@ -366,6 +385,15 @@ function renderReport(r, brief) {
       <td class="num">${b.indicative_plots ? b.indicative_plots.toLocaleString() : "–"}</td>
     </tr>`).join("");
 
+  const targetByBand = Object.fromEntries(r.dwellings.map(d => [d.band, d.plots]));
+  const cadVar = r.total_plots
+    ? (r.cadastre.total_plots - r.total_plots) / r.total_plots * 100 : 0;
+  const parcelRows = r.cadastre.by_band.map(b => `<tr>
+      <td>${b.band}</td>
+      <td class="num">${b.plots.toLocaleString()}</td>
+      <td class="num muted">${(targetByBand[b.band] || 0).toLocaleString()}</td>
+      <td class="num">${fmt(b.mean_plot_m2, 0)}</td></tr>`).join("");
+
   const i = r.infrastructure;
   const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
       <td>${c.constraint.replace(/_/g," ")}</td>
@@ -397,6 +425,15 @@ function renderReport(r, brief) {
       <div class="kv"><span>Road reserve area</span><span>${fmt(r.roads.reserve_area_ha, 1)} ha</span></div>
       <div class="kv"><span>Reserve share of site</span><span>${fmt(r.roads.reserve_pct_of_site, 1)}%</span></div>
       <div class="kv"><span>Junctions</span><span>${r.roads.junctions}</span></div>
+    </section>
+
+    <section class="pad"><h2>Cadastral layout</h2>
+      <table><thead><tr><th>Band</th><th>Plots</th><th>Target</th><th>Mean m&sup2;</th></tr></thead>
+      <tbody>${parcelRows}</tbody></table>
+      <div class="kv" style="margin-top:8px"><span>Plots surveyed</span><span>${r.cadastre.total_plots.toLocaleString()}</span></div>
+      <div class="kv"><span>Dwelling schedule</span><span>${r.total_plots.toLocaleString()}</span></div>
+      <div class="kv"><span>Variance</span><span style="color:${Math.abs(cadVar) > 15 ? "var(--warn)" : "var(--ink-dim)"}">${cadVar > 0 ? "+" : ""}${fmt(cadVar, 0)}%</span></div>
+      <p class="muted" style="font-size:11px;margin:8px 0 0">Zoom in past the block level to see individual plots.</p>
     </section>
 
     <section class="pad"><h2>Development blocks</h2>

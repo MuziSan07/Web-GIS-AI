@@ -47,6 +47,12 @@ ROAD_WIDTHS_PX = {
     "local_access": 0.8,
 }
 
+BAND_COLOURS = {
+    "low": "#F0D79B",
+    "medium": "#E8B84B",
+    "high": "#D89A2E",
+}
+
 CONSTRAINT_COLOURS = {
     "wetland": "#2E7D9A",
     "watercourse": "#3D8FB0",
@@ -81,6 +87,7 @@ def plan_to_geojson(
     allocation: AllocationResult | None = None,
     network=None,
     blocks=None,
+    cadastre=None,
     min_polygon_m2: float = 400.0,
 ) -> dict:
     """Assemble the whole plan as one FeatureCollection ready for MapLibre."""
@@ -172,6 +179,23 @@ def plan_to_geojson(
                     "colour": USE_COLOURS.get(b.use, "#CCCCCC"),
                     "area_ha": round(b.area_ha, 3),
                     "indicative_plots": b.indicative_plots,
+                },
+            })
+
+    # -- cadastral parcels ------------------------------------------------
+    if cadastre is not None:
+        for p in cadastre.parcels:
+            features_out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(p.geometry, site.crs)),
+                "properties": {
+                    "layer": "parcel",
+                    "plot_number": p.plot_number,
+                    "block_id": p.block_id,
+                    "band": p.band,
+                    "colour": BAND_COLOURS.get(p.band, "#E8B84B"),
+                    "area_m2": round(p.area_m2, 1),
+                    "frontage_m": p.frontage_m,
                 },
             })
 
