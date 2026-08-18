@@ -189,9 +189,19 @@ def test_known_limitation_net_to_gross_efficiency(ctx):
     """Documents a real, unresolved gap rather than hiding it.
 
     The ruleset assumes 72% of residential gross becomes saleable plots. The
-    current layout achieves closer to half, the losses being block cores too
-    deep to serve from a frontage and irregular edge fragments. Recovering
-    this needs internal access streets inside deep blocks.
+    layout achieves closer to half.
+
+    The cause was measured rather than guessed. Road reserves take 28%, which
+    is exactly the standard and therefore correct. Of the block area that
+    remains, about a third is lost inside subdivision. It is NOT block depth:
+    the street grid derives its spacing from plot depth, so the median block is
+    already close to the two-row requirement and only a minority are too deep.
+    Adding internal streets to those was worth about one percentage point.
+
+    The remaining loss is irregular block edges - grid cells clipped by
+    non-rectangular block outlines fall below the minimum plot area and are
+    discarded. Closing it needs subdivision that follows the block outline
+    rather than a bounding box.
 
     The bound is deliberately loose: it exists to catch a regression, and to
     fail loudly if a future change finally closes the gap so this test - and

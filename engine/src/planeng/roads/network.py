@@ -60,6 +60,18 @@ class RoadNetwork:
     reserve_polygon: object = None
     warnings: list[str] = field(default_factory=list)
 
+    def rebuild_reserves(self, site: Site) -> None:
+        """Recompute the reserve polygon after segments are added.
+
+        Reserves are derived from the segments, so anything that appends to the
+        network must ask for them to be rebuilt or downstream blocks are cut
+        from a stale footprint.
+        """
+        self.reserve_polygon = unary_union(
+            [s.geometry.buffer(s.reserve_width_m / 2, cap_style=2)
+             for s in self.segments]
+        ).intersection(site.boundary)
+
     def by_class(self, road_class: str) -> list[RoadSegment]:
         return [s for s in self.segments if s.road_class == road_class]
 

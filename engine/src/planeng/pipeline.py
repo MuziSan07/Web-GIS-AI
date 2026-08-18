@@ -18,6 +18,7 @@ from .brief.derive import Programme, derive_programme
 from .brief.models import PlanningBrief
 from .export.geojson import plan_to_geojson
 from .roads.blocks import BlockLayout, build_blocks, reconcile_plots
+from .roads.internal import add_internal_streets
 from .cadastre.parcels import CadastralLayout, subdivide
 from .facilities.siting import FacilityPlan, site_facilities
 from .roads.network import RoadNetwork, generate_network
@@ -144,6 +145,21 @@ def generate_master_plan(
                                             programme))
     blocks = step("build_blocks",
                   lambda: build_blocks(site, std, allocation, network, programme))
+
+    # Blocks too deep to subdivide from their frontages get a street run
+    # through them, then the blocks are recut. This can only happen after the
+    # first pass, because only then is it known which blocks are too deep.
+    def _internal_streets():
+        added = add_internal_streets(site, std, network, blocks, programme)
+        if added:
+            network.rebuild_reserves(site)
+        return added
+
+    internal = step("internal_streets", _internal_streets)
+    if internal:
+        blocks = step("rebuild_blocks",
+                      lambda: build_blocks(site, std, allocation, network,
+                                           programme))
     cadastre = step("subdivide",
                     lambda: subdivide(site, std, blocks, network, programme))
     facility_plan = step("site_facilities",
