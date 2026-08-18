@@ -219,11 +219,12 @@ def _subdivide_block(block: Block, spec: dict, reserves) -> tuple[list, bool]:
 
     too_deep = height > 2 * depth * 1.25
 
-    cols = max(1, int(round(width / frontage_min)))
+    # Floor, not round. Rounding up produces columns narrower than the minimum
+    # frontage: on the reference site that put 1,854 of 3,394 plots in breach
+    # of the very standard they were generated from. Flooring yields slightly
+    # fewer plots, each of which is compliant.
+    cols = max(1, int(width // frontage_min))
     col_w = width / cols
-    if col_w < frontage_min * 0.85:
-        cols = max(1, cols - 1)
-        col_w = width / cols
 
     out = []
     for y0 in row_offsets:

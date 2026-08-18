@@ -87,6 +87,7 @@ def plan_to_geojson(
     blocks=None,
     cadastre=None,
     facility_plan=None,
+    controls=None,
     min_polygon_m2: float = 400.0,
 ) -> dict:
     """Assemble the whole plan as one FeatureCollection ready for MapLibre."""
@@ -212,6 +213,29 @@ def plan_to_geojson(
                     "colour": FACILITY_COLOURS.get(f.category, "#4A7BA7"),
                     "area_ha": round(f.area_ha, 3),
                     "catchment_m": f.catchment_m,
+                },
+            })
+
+    # -- building envelopes -----------------------------------------------
+    # What a developer may actually build to, after setbacks. Drawn inside the
+    # plots so the two read together at high zoom.
+    if controls is not None:
+        for c in controls.controls:
+            if c.envelope is None or c.envelope.is_empty:
+                continue
+            features_out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(c.envelope, site.crs)),
+                "properties": {
+                    "layer": "envelope",
+                    "plot_number": c.plot_number,
+                    "band": c.band,
+                    "colour": "#8C6E2A",
+                    "envelope_m2": c.envelope_area_m2,
+                    "max_footprint_m2": c.max_footprint_m2,
+                    "max_floor_area_m2": c.max_floor_area_m2,
+                    "max_storeys": c.max_storeys,
+                    "compliant": c.compliant,
                 },
             })
 

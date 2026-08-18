@@ -226,6 +226,7 @@ function draw(fc) {
   const exist = pick("existing"), roads = pick("road");
   const blocks = pick("block"), reserve = pick("road_reserve");
   const parcels = pick("parcel"), facilities = pick("facility");
+  const envelopes = pick("envelope");
 
   const set = (id, data) => {
     if (map.getSource(id)) map.getSource(id).setData(data);
@@ -234,6 +235,7 @@ function draw(fc) {
   set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
   set("roads", roads); set("blocks", blocks); set("reserve", reserve);
   set("parcels", parcels); set("facilities", facilities);
+  set("envelopes", envelopes);
 
   if (!map.getLayer("zones-fill")) {
     // Zoning sits underneath as context; the blocks carved out by the road
@@ -256,6 +258,11 @@ function draw(fc) {
     map.addLayer({id: "parcels-line", type: "line", source: "parcels",
       minzoom: 15,
       paint: {"line-color": "#6b5320", "line-width": 0.4, "line-opacity": 0.8}});
+    // The building envelope: what may actually be built after setbacks. Only
+    // meaningful once individual plots are legible.
+    map.addLayer({id: "env-fill", type: "fill", source: "envelopes",
+      minzoom: 16,
+      paint: {"fill-color": "#6b5320", "fill-opacity": 0.55}});
     map.addLayer({id: "roads-line", type: "line", source: "roads",
       paint: {"line-color": ["get", "colour"], "line-width": ["get", "width_px"],
               "line-opacity": 0.95}});
@@ -427,6 +434,13 @@ function renderReport(r, brief) {
       <td class="num" style="color:${covColour}">${cov}</td></tr>`;
   }).join("");
 
+  const dc = r.development_control;
+  const dcRows = dc.by_band.map(x => `<tr>
+      <td>${x.band}</td>
+      <td class="num">${x.plots.toLocaleString()}</td>
+      <td class="num">${fmt(x.mean_envelope_m2, 0)}</td>
+      <td class="num">${fmt(x.permitted_floor_area_m2, 0)}</td></tr>`).join("");
+
   const i = r.infrastructure;
   const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
       <td>${c.constraint.replace(/_/g," ")}</td>
@@ -458,6 +472,16 @@ function renderReport(r, brief) {
       <div class="kv"><span>Road reserve area</span><span>${fmt(r.roads.reserve_area_ha, 1)} ha</span></div>
       <div class="kv"><span>Reserve share of site</span><span>${fmt(r.roads.reserve_pct_of_site, 1)}%</span></div>
       <div class="kv"><span>Junctions</span><span>${r.roads.junctions}</span></div>
+    </section>
+
+    <section class="pad"><h2>Development control</h2>
+      <table><thead><tr><th>Band</th><th>Plots</th><th>Envelope m&sup2;</th><th>Floor area m&sup2;</th></tr></thead>
+      <tbody>${dcRows}</tbody></table>
+      <div class="kv" style="margin-top:8px"><span>Plots assessed</span><span>${dc.plots_assessed.toLocaleString()}</span></div>
+      <div class="kv"><span>Compliant</span><span style="color:${dc.compliance_pct >= 100 ? "var(--good)" : "var(--warn)"}">${fmt(dc.compliance_pct, 1)}%</span></div>
+      <div class="kv"><span>Land use conflicts</span><span style="color:${dc.land_use_conflicts ? "var(--warn)" : "var(--ink-dim)"}">${dc.land_use_conflicts}</span></div>
+      <div class="kv"><span>Permitted floor area</span><span>${fmt(dc.total_permitted_floor_area_m2, 0)} m&sup2;</span></div>
+      <p class="muted" style="font-size:11px;margin:8px 0 0">Envelope is the plot area left after front, side and rear setbacks. Visible at high zoom.</p>
     </section>
 
     <section class="pad"><h2>Cadastral layout</h2>
