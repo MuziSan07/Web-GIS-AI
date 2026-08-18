@@ -17,6 +17,7 @@ from .agents import brief_agent, ollama
 from .brief.models import DensityMix, PlanningBrief
 from .nlp.prompt import parse_prompt
 from .pipeline import generate_master_plan
+from .scenarios import compare as compare_scenarios
 from .standards.loader import load_standards
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -119,6 +120,54 @@ def standards(jurisdiction: str = "botswana") -> dict:
         "warning": std.provenance_warning(),
         "ruleset": std.data,
     }
+
+
+class ScenarioRequest(BaseModel):
+    prompt: str | None = Field(default=None, min_length=8)
+    site_area_ha: float | None = Field(default=None, gt=0)
+    target_population: int | None = Field(default=None, gt=0)
+    cell_size: float = Field(
+        default=20.0, ge=10.0, le=50.0,
+        description="Coarser than a single plan by default: four full pipelines "
+                    "at 10 m take minutes, and form comparison resolves fine "
+                    "at 20 m. Generate the chosen form at full resolution.",
+    )
+    use_llm: bool = True
+
+
+@app.post("/api/scenarios")
+def scenarios(req: ScenarioRequest) -> dict:
+    """Generate several settlement forms from one brief and score each.
+
+    Only the form varies: the site, ruleset and population are shared, so any
+    difference between scorecards is attributable to the form.
+    """
+    try:
+        if req.prompt:
+            brief = (brief_agent.understand(req.prompt).brief if req.use_llm
+                     else parse_prompt(req.prompt))
+        elif req.site_area_ha and req.target_population:
+            brief = PlanningBrief(
+                project_name="Scenario Comparison",
+                site_area_ha=req.site_area_ha,
+                target_population=req.target_population,
+            )
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide either a prompt, or both site_area_ha and "
+                       "target_population.",
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    result = compare_scenarios(brief, cell_size=req.cell_size)
+    if not result.scenarios:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No scenario could be generated. {result.failures}",
+        )
+    return result.summary()
 
 
 @app.get("/api/agent")

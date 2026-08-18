@@ -95,8 +95,17 @@ def _distance_to(site: Site, arr_true: np.ndarray) -> np.ndarray:
 
 
 def compute_suitability(
-    site: Site, std: Standards, constraints: ConstraintResult
+    site: Site,
+    std: Standards,
+    constraints: ConstraintResult,
+    weights: dict[LandUse, dict[str, float]] | None = None,
 ) -> SuitabilityResult:
+    """Weighted suitability per land use.
+
+    `weights` overrides the defaults. This is the lever settlement form pulls:
+    a linear town and a compact one differ because road proximity outweighs
+    centrality, not because a different algorithm ran.
+    """
     mask = site.mask()
     slope = constraints.slope
     crit: dict[str, np.ndarray] = {}
@@ -143,8 +152,9 @@ def compute_suitability(
     crit["industrial_separation"] = np.full(site.shape, 0.5, dtype=float)
 
     surfaces: dict[LandUse, np.ndarray] = {}
-    for use, weights in CRITERIA_WEIGHTS.items():
-        surfaces[use] = _weighted(crit, weights, mask, constraints)
+    active = weights or CRITERIA_WEIGHTS
+    for use, use_weights in active.items():
+        surfaces[use] = _weighted(crit, use_weights, mask, constraints)
 
     # Refine: push housing and institutions away from the most industrially
     # suitable land, then recompute the two surfaces that depend on it.
@@ -153,7 +163,7 @@ def compute_suitability(
     d_ind = _distance_to(site, likely_industrial & mask)
     crit["industrial_separation"] = _norm(np.minimum(d_ind, 1500.0), mask)
     for use in ("residential", "institutional"):
-        surfaces[use] = _weighted(crit, CRITERIA_WEIGHTS[use], mask, constraints)
+        surfaces[use] = _weighted(crit, active[use], mask, constraints)
 
     return SuitabilityResult(surfaces=surfaces, criteria=crit)
 

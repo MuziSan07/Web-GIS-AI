@@ -118,6 +118,7 @@ def generate_master_plan(
     site: Site | None = None,
     standards: Standards | None = None,
     cell_size: float = 10.0,
+    weights: dict | None = None,
 ) -> MasterPlan:
     """Run the full pipeline from brief to allocated plan."""
     timings: dict[str, float] = {}
@@ -140,8 +141,10 @@ def generate_master_plan(
 
     programme = step("derive_programme", lambda: derive_programme(brief, std))
     constraints = step("analyse_constraints", lambda: analyse_constraints(site, std))
+    # Settlement form enters here and nowhere else: it changes what makes land
+    # good for a use, not how any of the geometry is produced.
     suitability = step("compute_suitability",
-                       lambda: compute_suitability(site, std, constraints))
+                       lambda: compute_suitability(site, std, constraints, weights))
     allocation = step("allocate_land",
                       lambda: allocate_land(site, programme, suitability, constraints))
     network = step("generate_roads",

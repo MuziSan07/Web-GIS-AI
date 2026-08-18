@@ -26,7 +26,7 @@ from shapely.geometry import Point, Polygon, box
 
 from ..allocate.zones import AllocationResult
 from ..brief.derive import Programme
-from ..geom import clean, safe_intersection
+from ..geom import clean, safe_difference, safe_intersection
 from ..roads.blocks import Block, BlockLayout
 from ..site.model import Site
 from ..standards.loader import Standards
@@ -161,7 +161,7 @@ def site_facilities(
             placed.append(facility)
             plan.facilities.append(facility)
 
-            remainder = clean(available[block_id].difference(geom))
+            remainder = clean(safe_difference(available[block_id], geom))
             if remainder.is_empty or remainder.area < 200:
                 available.pop(block_id, None)
             else:

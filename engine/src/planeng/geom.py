@@ -110,6 +110,25 @@ def clean(geom):
     return geom
 
 
+def safe_difference(a, b):
+    """Subtract b from a, surviving GEOS robustness failures.
+
+    The same escalation as `safe_intersection`, and needed for the same reason:
+    a geometry repeatedly carved by earlier operations reports itself valid and
+    still raises a side location conflict on the next overlay.
+    """
+    try:
+        return a.difference(b)
+    except GEOSException:
+        pass
+
+    a2, b2 = make_valid(a), make_valid(b)
+    try:
+        return a2.difference(b2)
+    except GEOSException:
+        return set_precision(a2, 0.001).difference(set_precision(b2, 0.001))
+
+
 def safe_intersection(a, b):
     """Intersect two geometries, surviving GEOS robustness failures.
 
