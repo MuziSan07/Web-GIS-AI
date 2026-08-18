@@ -123,9 +123,9 @@
       <div id="legend-panel"></div>
     </section>
     <div class="foot">
-      Land use zones are generated from a weighted suitability analysis and
-      allocated against the land budget. Road networks, parcel subdivision and
-      3D are the next modules.
+      Roads are routed by least-cost path over a terrain and constraint surface,
+      then buffered to the reserve widths in the ruleset. Blocks are what remains
+      once reserves are removed. Parcel subdivision and 3D are the next modules.
     </div>
   </div>
 
@@ -220,35 +220,58 @@ function whenMapReady(fn) {
 }
 
 function draw(fc) {
-  const zones = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "zone")};
-  const cons  = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "constraint")};
-  const bound = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "boundary")};
-  const exist = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "existing")};
+  const pick = l => ({type: "FeatureCollection",
+                     features: fc.features.filter(f => f.properties.layer === l)});
+  const zones = pick("zone"), cons = pick("constraint"), bound = pick("boundary");
+  const exist = pick("existing"), roads = pick("road");
+  const blocks = pick("block"), reserve = pick("road_reserve");
 
   const set = (id, data) => {
     if (map.getSource(id)) map.getSource(id).setData(data);
     else map.addSource(id, {type: "geojson", data});
   };
   set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
+  set("roads", roads); set("blocks", blocks); set("reserve", reserve);
 
   if (!map.getLayer("zones-fill")) {
+    // Zoning sits underneath as context; the blocks carved out by the road
+    // network are the actual developable land, so they read strongest.
     map.addLayer({id: "zones-fill", type: "fill", source: "zones",
-      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.78}});
-    map.addLayer({id: "zones-line", type: "line", source: "zones",
-      paint: {"line-color": "#0b0e14", "line-width": 0.4, "line-opacity": 0.5}});
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.22}});
     map.addLayer({id: "cons-fill", type: "fill", source: "cons",
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.55}});
+    map.addLayer({id: "reserve-fill", type: "fill", source: "reserve",
+      paint: {"fill-color": "#2a3040", "fill-opacity": 0.85}});
+    map.addLayer({id: "blocks-fill", type: "fill", source: "blocks",
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.88}});
+    map.addLayer({id: "blocks-line", type: "line", source: "blocks",
+      paint: {"line-color": "#11151d", "line-width": 0.35, "line-opacity": 0.7}});
+    map.addLayer({id: "roads-line", type: "line", source: "roads",
+      paint: {"line-color": ["get", "colour"], "line-width": ["get", "width_px"],
+              "line-opacity": 0.95}});
     map.addLayer({id: "exist-line", type: "line", source: "exist",
       paint: {"line-color": "#c8ccd6", "line-width": 2, "line-dasharray": [3, 2]}});
     map.addLayer({id: "bound-line", type: "line", source: "bound",
       paint: {"line-color": "#e6eaf2", "line-width": 1.8}});
 
-    map.on("click", "zones-fill", e => {
+    map.on("click", "blocks-fill", e => {
       const p = e.features[0].properties;
       new maplibregl.Popup({closeButton: false})
         .setLngLat(e.lngLat)
         .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>${p.use.replace(/_/g," ")}</b><br>${fmt(p.area_ha, 2)} ha</div>`)
+          <b>Block ${p.block_id}</b><br>${p.use.replace(/_/g," ")}<br>
+          ${fmt(p.area_ha, 2)} ha${p.indicative_plots > 0
+            ? `<br>~${p.indicative_plots} plots` : ""}</div>`)
+        .addTo(map);
+    });
+    map.on("click", "roads-line", e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({closeButton: false})
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font:12px system-ui;color:#111">
+          <b>${p.road_class.replace(/_/g," ")}</b><br>
+          ${fmt(p.reserve_width_m, 0)} m reserve<br>
+          ${fmt(p.length_m, 0)} m long</div>`)
         .addTo(map);
     });
     map.on("click", "cons-fill", e => {
@@ -260,7 +283,7 @@ function draw(fc) {
           <span style="color:#555">${p.rule}</span></div>`)
         .addTo(map);
     });
-    ["zones-fill","cons-fill"].forEach(l => {
+    ["blocks-fill","cons-fill","roads-line"].forEach(l => {
       map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
       map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
     });
@@ -331,6 +354,18 @@ function renderReport(r, brief) {
         <td class="num muted">${f.catchment_m ? fmt(f.catchment_m, 0) + " m" : "–"}</td></tr>`).join("")
   ).join("");
 
+  const roadRows = r.roads.by_class.map(c => `<tr>
+      <td>${c.road_class.replace(/_/g," ")}</td>
+      <td class="num">${c.segments}</td>
+      <td class="num">${fmt(c.length_km, 2)}</td></tr>`).join("");
+
+  const blockRows = r.blocks.by_use.map(b => `<tr>
+      <td>${b.use.replace(/_/g," ")}</td>
+      <td class="num">${b.blocks}</td>
+      <td class="num">${fmt(b.area_ha, 1)}</td>
+      <td class="num">${b.indicative_plots ? b.indicative_plots.toLocaleString() : "–"}</td>
+    </tr>`).join("");
+
   const i = r.infrastructure;
   const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
       <td>${c.constraint.replace(/_/g," ")}</td>
@@ -353,6 +388,23 @@ function renderReport(r, brief) {
     <section class="pad"><h2>Land allocation</h2>
       <table><thead><tr><th>Use</th><th>Target ha</th><th>Actual ha</th><th>Var</th></tr></thead>
       <tbody>${alloc}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Road network</h2>
+      <table><thead><tr><th>Class</th><th>Segments</th><th>Length km</th></tr></thead>
+      <tbody>${roadRows}</tbody></table>
+      <div class="kv" style="margin-top:8px"><span>Total length</span><span>${fmt(r.roads.total_length_km, 2)} km</span></div>
+      <div class="kv"><span>Road reserve area</span><span>${fmt(r.roads.reserve_area_ha, 1)} ha</span></div>
+      <div class="kv"><span>Reserve share of site</span><span>${fmt(r.roads.reserve_pct_of_site, 1)}%</span></div>
+      <div class="kv"><span>Junctions</span><span>${r.roads.junctions}</span></div>
+    </section>
+
+    <section class="pad"><h2>Development blocks</h2>
+      <table><thead><tr><th>Use</th><th>Blocks</th><th>ha</th><th>Plots</th></tr></thead>
+      <tbody>${blockRows}</tbody></table>
+      <div class="kv" style="margin-top:8px"><span>Blocks formed</span><span>${r.blocks.block_count.toLocaleString()}</span></div>
+      <div class="kv"><span>Indicative plot yield</span><span>${r.blocks.indicative_plots.toLocaleString()}</span></div>
+      <div class="kv"><span>Dwelling schedule target</span><span>${r.total_plots.toLocaleString()}</span></div>
     </section>
 
     <section class="pad"><h2>Dwelling schedule</h2>

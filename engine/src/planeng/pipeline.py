@@ -17,6 +17,8 @@ from .analysis.suitability import SuitabilityResult, compute_suitability
 from .brief.derive import Programme, derive_programme
 from .brief.models import PlanningBrief
 from .export.geojson import plan_to_geojson
+from .roads.blocks import BlockLayout, build_blocks, reconcile_plots
+from .roads.network import RoadNetwork, generate_network
 from .site.model import Site
 from .site.synthetic import generate_site
 from .standards.loader import Standards, load_standards
@@ -30,12 +32,15 @@ class MasterPlan:
     constraints: ConstraintResult
     suitability: SuitabilityResult
     allocation: AllocationResult
+    network: RoadNetwork
+    blocks: BlockLayout
     standards: Standards
     timings_ms: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def to_geojson(self) -> dict:
-        return plan_to_geojson(self.site, self.constraints, self.allocation)
+        return plan_to_geojson(self.site, self.constraints, self.allocation,
+                               network=self.network, blocks=self.blocks)
 
     def report(self) -> dict:
         """The machine-readable plan summary, used by the API and the UI."""
@@ -81,6 +86,8 @@ class MasterPlan:
                                 key=lambda x: (x.category, x.key))
             ],
             "allocation": self.allocation.summary(),
+            "roads": self.network.summary(self.site),
+            "blocks": self.blocks.summary(),
             "infrastructure": self.programme.infrastructure,
             "warnings": self.warnings,
             "ruleset": {
@@ -124,8 +131,16 @@ def generate_master_plan(
                        lambda: compute_suitability(site, std, constraints))
     allocation = step("allocate_land",
                       lambda: allocate_land(site, programme, suitability, constraints))
+    network = step("generate_roads",
+                   lambda: generate_network(site, std, constraints, allocation))
+    blocks = step("build_blocks",
+                  lambda: build_blocks(site, std, allocation, network, programme))
 
     warnings = list(programme.warnings)
+    warnings.extend(network.warnings)
+    warnings.extend(blocks.warnings)
+    if (msg := reconcile_plots(blocks, programme.total_dwellings)) is not None:
+        warnings.append(msg)
 
     # The programme is sized against gross site area, but constraints remove
     # land. Say so plainly rather than letting the quota scaling hide it.
@@ -141,6 +156,6 @@ def generate_master_plan(
 
     return MasterPlan(
         brief=brief, site=site, programme=programme, constraints=constraints,
-        suitability=suitability, allocation=allocation, standards=std,
-        timings_ms=timings, warnings=warnings,
+        suitability=suitability, allocation=allocation, network=network,
+        blocks=blocks, standards=std, timings_ms=timings, warnings=warnings,
     )

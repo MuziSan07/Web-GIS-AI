@@ -33,6 +33,20 @@ USE_COLOURS = {
     "utilities": "#B07D3A",
 }
 
+ROAD_COLOURS = {
+    "primary_arterial": "#F2F2F2",
+    "district_distributor": "#C9CDD6",
+    "collector": "#9BA3B0",
+    "local_access": "#6E7684",
+}
+
+ROAD_WIDTHS_PX = {
+    "primary_arterial": 3.2,
+    "district_distributor": 2.2,
+    "collector": 1.5,
+    "local_access": 0.8,
+}
+
 CONSTRAINT_COLOURS = {
     "wetland": "#2E7D9A",
     "watercourse": "#3D8FB0",
@@ -65,6 +79,8 @@ def plan_to_geojson(
     site: Site,
     constraints: ConstraintResult,
     allocation: AllocationResult | None = None,
+    network=None,
+    blocks=None,
     min_polygon_m2: float = 400.0,
 ) -> dict:
     """Assemble the whole plan as one FeatureCollection ready for MapLibre."""
@@ -112,6 +128,52 @@ def plan_to_geojson(
                         "mean_suitability": allocation.mean_suitability.get(use),
                     },
                 })
+
+    # -- road reserves ----------------------------------------------------
+    # Reserves are drawn as polygons because their width is a planning
+    # instrument, not a rendering choice: a 40 m reserve must occupy 40 m.
+    if network is not None and network.reserve_polygon is not None             and not network.reserve_polygon.is_empty:
+        features_out.append({
+            "type": "Feature",
+            "geometry": mapping(_to_wgs84(network.reserve_polygon, site.crs)),
+            "properties": {
+                "layer": "road_reserve",
+                "colour": "#3A4150",
+                "area_ha": round(network.reserve_area_ha, 2),
+            },
+        })
+
+    # -- road centrelines -------------------------------------------------
+    if network is not None:
+        for seg in network.segments:
+            features_out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(seg.geometry, site.crs)),
+                "properties": {
+                    "layer": "road",
+                    "road_class": seg.road_class,
+                    "colour": ROAD_COLOURS.get(seg.road_class, "#AAAAAA"),
+                    "width_px": ROAD_WIDTHS_PX.get(seg.road_class, 1.0),
+                    "reserve_width_m": seg.reserve_width_m,
+                    "length_m": round(seg.length_m, 1),
+                },
+            })
+
+    # -- development blocks ----------------------------------------------
+    if blocks is not None:
+        for b in blocks.blocks:
+            features_out.append({
+                "type": "Feature",
+                "geometry": mapping(_to_wgs84(b.geometry, site.crs)),
+                "properties": {
+                    "layer": "block",
+                    "block_id": b.block_id,
+                    "use": b.use,
+                    "colour": USE_COLOURS.get(b.use, "#CCCCCC"),
+                    "area_ha": round(b.area_ha, 3),
+                    "indicative_plots": b.indicative_plots,
+                },
+            })
 
     # -- existing features the plan must respond to -----------------------
     for key in ("existing_road", "powerline", "watercourse"):
