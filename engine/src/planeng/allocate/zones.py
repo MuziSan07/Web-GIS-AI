@@ -96,7 +96,7 @@ def allocate_land(
     programme: Programme,
     suitability: SuitabilityResult,
     constraints: ConstraintResult,
-    compactness_passes: int = 3,
+    compactness_passes: int = 10,
 ) -> AllocationResult:
     buildable = constraints.buildable
     n_buildable = int(buildable.sum())
@@ -300,7 +300,15 @@ def _grow_one(surface: np.ndarray, free: np.ndarray, seed, target: int,
     return region
 
 
-def _compact(labels: np.ndarray, buildable: np.ndarray, passes: int) -> np.ndarray:
+# A cell is speckle when this few of its 3x3 neighbours share its use. At 3/9
+# only fully isolated cells move, which leaves the ragged interlocking zones
+# that make a generated plan look like camouflage rather than a layout. At 5/9
+# any cell in a local minority is pulled into the use that surrounds it.
+SPECKLE_THRESHOLD = 5 / 9
+
+
+def _compact(labels: np.ndarray, buildable: np.ndarray, passes: int,
+             threshold: float = SPECKLE_THRESHOLD) -> np.ndarray:
     """Majority filter that removes speckle while preserving each use's area.
 
     Swaps are made in pairs so the area assigned to every use is unchanged: a
@@ -317,7 +325,7 @@ def _compact(labels: np.ndarray, buildable: np.ndarray, passes: int) -> np.ndarr
             # Count same-use neighbours in a 3x3 window.
             neigh = ndimage.uniform_filter(m.astype(float), size=3, mode="constant")
             # Isolated cells: fewer than 3 of 9 neighbours share their use.
-            isolated = m & (neigh < 3 / 9) & buildable
+            isolated = m & (neigh < threshold) & buildable
             for r, c in zip(*np.nonzero(isolated)):
                 # Which use dominates this cell's surroundings?
                 r0, r1 = max(0, r - 1), min(out.shape[0], r + 2)

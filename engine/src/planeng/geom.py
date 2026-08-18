@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 from rasterio import features
-from shapely import make_valid, set_precision
+from shapely import coverage_simplify, make_valid, set_precision
 from shapely.errors import GEOSException
 from shapely.geometry import LineString, MultiPolygon, Polygon, shape
 from shapely.ops import unary_union
@@ -39,8 +39,49 @@ def polygonise(arr: np.ndarray, site: Site, min_area_m2: float = 0.0) -> list[Po
             g = g.buffer(0)
         # A repair can split a pinched region into several polygons.
         for part in (g.geoms if isinstance(g, MultiPolygon) else [g]):
-            if part.geom_type == "Polygon" and part.area >= min_area_m2:
-                out.append(part)
+            if part.geom_type != "Polygon" or part.area < min_area_m2:
+                continue
+            out.append(part)
+    return out
+
+
+def destaircase(geoms: list, cell_size: float) -> list:
+    """Remove the raster staircase from a layer of polygons.
+
+    Every boundary traced from a grid is a flight of steps one cell high. Left
+    alone the plan looks pixelated, and a stepped parcel boundary carries dozens
+    of vertices that mean nothing on the ground.
+
+    The whole layer is simplified as a coverage, not polygon by polygon.
+    Simplifying each in isolation moves shared boundaries independently, so
+    neighbouring parcels drift apart or overlap by metres - which is a
+    cadastral defect, not a cosmetic one. Coverage simplification moves a
+    shared edge once, for both sides.
+
+    This is presentation only. The geometry the plan is computed from stays
+    exact; only what is drawn is smoothed.
+    """
+    if not geoms:
+        return geoms
+    tolerance = cell_size * 0.75
+    try:
+        simplified = list(coverage_simplify(geoms, tolerance=tolerance))
+    except Exception:
+        # Not a clean coverage (overlaps, or a GEOS refusal). Fall back to
+        # per-geometry simplification, which is imperfect but still better
+        # than emitting raw staircases.
+        simplified = [g.simplify(tolerance, preserve_topology=True) for g in geoms]
+
+    out = []
+    for original, s in zip(geoms, simplified):
+        s = clean(s)
+        # A simplification that loses a tenth of the area has cut a corner it
+        # should not have; keep the original rather than misreport the extent.
+        if (s.is_empty or s.geom_type not in ("Polygon", "MultiPolygon")
+                or abs(s.area - original.area) > original.area * 0.10):
+            out.append(original)
+        else:
+            out.append(s)
     return out
 
 

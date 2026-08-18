@@ -19,6 +19,7 @@ from pyproj import Transformer
 
 from ..allocate.zones import UNASSIGNED, AllocationResult
 from ..analysis.constraints import ConstraintResult
+from ..geom import destaircase
 from ..geom import polygonise as _polygonise
 from ..site.model import Site
 
@@ -228,7 +229,28 @@ def plan_to_geojson(
             "properties": {"layer": "existing", "feature": key},
         })
 
+    _smooth_layers(features_out, site.cell_size)
     return {"type": "FeatureCollection", "features": features_out}
+
+
+def _smooth_layers(features_out: list[dict], cell_size: float) -> None:
+    """De-staircase each polygon layer as a coverage, in place.
+
+    Done here rather than in the engine because it is a drawing decision. Each
+    layer is smoothed independently and as a whole, so shared boundaries within
+    a layer move once instead of drifting apart.
+    """
+    by_layer: dict[str, list[int]] = {}
+    for i, f in enumerate(features_out):
+        if f["geometry"]["type"] in ("Polygon", "MultiPolygon"):
+            by_layer.setdefault(f["properties"]["layer"], []).append(i)
+
+    for layer, indices in by_layer.items():
+        if layer == "boundary":
+            continue          # the site boundary is surveyed, not rasterised
+        geoms = [shape(features_out[i]["geometry"]) for i in indices]
+        for i, g in zip(indices, destaircase(geoms, cell_size)):
+            features_out[i]["geometry"] = mapping(g)
 
 
 def write_geojson(fc: dict, path: str | Path) -> Path:
