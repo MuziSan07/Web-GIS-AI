@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master Plan Copilot</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --bg: #10131a; --panel: #171b24; --panel-2: #1e2430; --line: #2b3342;
+    --ink: #e6eaf2; --ink-dim: #97a1b5; --ink-faint: #6b7689;
+    --accent: #6ea8fe; --warn: #e0a458; --bad: #d1495b; --good: #5cb87a;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+  }
+
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .2px; }
+  header .sub { color: var(--ink-faint); font-size: 12px; }
+  .badge {
+    margin-left: auto; font: 11px/1 var(--mono); padding: 6px 10px;
+    border-radius: 4px; border: 1px solid var(--warn); color: var(--warn);
+    background: rgba(224,164,88,.10); white-space: nowrap;
+  }
+
+  main { display: grid; grid-template-columns: 340px 1fr 380px; min-height: 0; }
+  .panel { background: var(--panel); overflow-y: auto; min-height: 0; }
+  .panel.left { border-right: 1px solid var(--line); }
+  .panel.right { border-left: 1px solid var(--line); }
+  .pad { padding: 16px; }
+  h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--ink-faint); margin: 0 0 10px; font-weight: 600;
+  }
+  section + section { border-top: 1px solid var(--line); }
+
+  textarea {
+    width: 100%; min-height: 130px; resize: vertical; padding: 11px 12px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; font: 13px/1.55 inherit;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  button.primary {
+    width: 100%; margin-top: 10px; padding: 11px; border: 0; border-radius: 6px;
+    background: var(--accent); color: #0d1220; font-weight: 650; font-size: 13px;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .examples { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .examples button {
+    text-align: left; padding: 9px 10px; border-radius: 5px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--ink-dim); font-size: 12px; line-height: 1.45;
+  }
+  .examples button:hover { border-color: var(--accent); color: var(--ink); }
+
+  #map { background: #0b0e14; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td, th { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-faint); font-weight: 500; font-size: 11px; }
+  td:first-child, th:first-child { text-align: left; }
+  .num { font-family: var(--mono); font-size: 12px; }
+  .swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: 7px; vertical-align: -1px;
+  }
+  .kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px; }
+  .kv span:last-child { font-family: var(--mono); }
+  .muted { color: var(--ink-dim); }
+
+  .warn {
+    border-left: 3px solid var(--warn); background: rgba(224,164,88,.07);
+    padding: 9px 11px; margin-bottom: 9px; font-size: 12px; color: #f0d3a8;
+    border-radius: 0 4px 4px 0;
+  }
+  .warn.bad { border-color: var(--bad); background: rgba(209,73,91,.09); color: #f3bec6; }
+
+  .status {
+    position: absolute; inset: 0; display: none; place-items: center;
+    background: rgba(11,14,20,.82); z-index: 5; font-size: 13px; color: var(--ink-dim);
+  }
+  .status.on { display: grid; }
+  .mapwrap { position: relative; min-height: 0; }
+  .legend {
+    position: absolute; left: 12px; bottom: 12px; z-index: 4;
+    background: rgba(23,27,36,.94); border: 1px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; font-size: 11.5px;
+    max-width: 210px; backdrop-filter: blur(4px);
+  }
+  .legend div { padding: 2px 0; color: var(--ink-dim); }
+  .foot { color: var(--ink-faint); font-size: 11px; padding: 12px 16px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Master Plan Copilot</h1>
+  <span class="sub">Spatial planning engine &mdash; prototype</span>
+  <span class="badge" id="ruleset-badge">checking ruleset&hellip;</span>
+</header>
+
+<main>
+  <div class="panel left">
+    <section class="pad">
+      <h2>Planning brief</h2>
+      <textarea id="prompt" spellcheck="false">Plan a sustainable 600 hectare settlement for 25,000 people. Use high-density plots. Provide 6 primary schools and 2 secondary schools, clinics, police and fire stations. Strictly avoid environmentally sensitive areas and optimise for low infrastructure cost.</textarea>
+      <button class="primary" id="go">Generate master plan</button>
+      <div class="examples" id="examples"></div>
+    </section>
+    <section class="pad">
+      <h2>Land use legend</h2>
+      <div id="legend-panel"></div>
+    </section>
+    <div class="foot">
+      Land use zones are generated from a weighted suitability analysis and
+      allocated against the land budget. Road networks, parcel subdivision and
+      3D are the next modules.
+    </div>
+  </div>
+
+  <div class="mapwrap">
+    <div id="map" style="position:absolute; inset:0;"></div>
+    <div class="status" id="status">Generating&hellip;</div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="panel right" id="report">
+    <section class="pad"><h2>Report</h2>
+      <p class="muted" style="font-size:12.5px">Generate a plan to see the schedule.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+const EXAMPLES = [
+  "Plan a 600 hectare settlement for 25,000 people with high-density plots, avoiding wetlands.",
+  "Design a low-density 600 ha town for 12,000 residents with 3 primary schools and no industrial area.",
+  "Create a compact 450 hectare settlement for 18,000 people optimised for walkability and low infrastructure cost.",
+  "Plan 600 ha providing 5,000 residential plots, a market, 2 secondary schools and high environmental protection."
+];
+
+const $ = s => document.querySelector(s);
+const fmt = (n, d = 1) => n == null ? "–"
+  : Number(n).toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+
+let map, lastData = null;
+
+// Blank canvas style: the plan is the content, so no basemap competes with it.
+map = new maplibregl.Map({
+  container: "map",
+  style: { version: 8, sources: {}, layers: [
+    { id: "bg", type: "background", paint: { "background-color": "#0b0e14" } }
+  ]},
+  center: [25.95, -24.93], zoom: 12, attributionControl: false
+});
+map.addControl(new maplibregl.NavigationControl({showCompass: false}), "top-right");
+map.addControl(new maplibregl.ScaleControl({unit: "metric"}), "bottom-right");
+
+EXAMPLES.forEach(text => {
+  const b = document.createElement("button");
+  b.textContent = text;
+  b.onclick = () => { $("#prompt").value = text; generate(); };
+  $("#examples").appendChild(b);
+});
+
+fetch("/api/standards").then(r => r.json()).then(s => {
+  const badge = $("#ruleset-badge");
+  badge.textContent = s.validated
+    ? `ruleset ${s.version} — validated`
+    : `UNVALIDATED RULESET — ${s.placeholder_paths.length} placeholder rules`;
+  if (s.validated) { badge.style.borderColor = "var(--good)"; badge.style.color = "var(--good)"; }
+  badge.title = s.warning || "";
+});
+
+$("#go").onclick = generate;
+$("#prompt").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") generate();
+});
+
+async function generate() {
+  const prompt = $("#prompt").value.trim();
+  if (prompt.length < 8) return;
+  $("#status").classList.add("on");
+  $("#go").disabled = true;
+  try {
+    const res = await fetch("/api/plan/prompt", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({prompt})
+    });
+    const data = await res.json();
+    if (!res.ok) { renderError(data.detail || "Request failed"); return; }
+    lastData = data;
+    renderReport(data.report, data.brief);
+    whenMapReady(() => draw(data.geojson));
+  } catch (err) {
+    renderError(String(err));
+  } finally {
+    $("#status").classList.remove("on");
+    $("#go").disabled = false;
+  }
+}
+
+// The report must never depend on the map. If WebGL is slow or unavailable the
+// schedule still renders; only the drawing waits.
+function whenMapReady(fn) {
+  if (map.isStyleLoaded()) fn();
+  else map.once("load", fn);
+}
+
+function draw(fc) {
+  const zones = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "zone")};
+  const cons  = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "constraint")};
+  const bound = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "boundary")};
+  const exist = {type: "FeatureCollection", features: fc.features.filter(f => f.properties.layer === "existing")};
+
+  const set = (id, data) => {
+    if (map.getSource(id)) map.getSource(id).setData(data);
+    else map.addSource(id, {type: "geojson", data});
+  };
+  set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
+
+  if (!map.getLayer("zones-fill")) {
+    map.addLayer({id: "zones-fill", type: "fill", source: "zones",
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.78}});
+    map.addLayer({id: "zones-line", type: "line", source: "zones",
+      paint: {"line-color": "#0b0e14", "line-width": 0.4, "line-opacity": 0.5}});
+    map.addLayer({id: "cons-fill", type: "fill", source: "cons",
+      paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.55}});
+    map.addLayer({id: "exist-line", type: "line", source: "exist",
+      paint: {"line-color": "#c8ccd6", "line-width": 2, "line-dasharray": [3, 2]}});
+    map.addLayer({id: "bound-line", type: "line", source: "bound",
+      paint: {"line-color": "#e6eaf2", "line-width": 1.8}});
+
+    map.on("click", "zones-fill", e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({closeButton: false})
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font:12px system-ui;color:#111">
+          <b>${p.use.replace(/_/g," ")}</b><br>${fmt(p.area_ha, 2)} ha</div>`)
+        .addTo(map);
+    });
+    map.on("click", "cons-fill", e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({closeButton: false})
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font:12px system-ui;color:#111">
+          <b>${p.constraint.replace(/_/g," ")}</b><br>
+          <span style="color:#555">${p.rule}</span></div>`)
+        .addTo(map);
+    });
+    ["zones-fill","cons-fill"].forEach(l => {
+      map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
+      map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
+    });
+  }
+
+  // Fit to the site boundary.
+  const coords = bound.features.flatMap(f =>
+    f.geometry.type === "Polygon" ? f.geometry.coordinates.flat()
+                                  : f.geometry.coordinates.flat(2));
+  if (coords.length) {
+    const b = coords.reduce((acc, c) => [
+      Math.min(acc[0], c[0]), Math.min(acc[1], c[1]),
+      Math.max(acc[2], c[0]), Math.max(acc[3], c[1])
+    ], [180, 90, -180, -90]);
+    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {padding: 48, duration: 700});
+  }
+
+  drawLegend();
+}
+
+function drawLegend() {
+  if (!lastData) return;
+  const uses = lastData.report.allocation.map(a => a.use);
+  const colours = {};
+  lastData.geojson.features.forEach(f => {
+    if (f.properties.layer === "zone") colours[f.properties.use] = f.properties.colour;
+    if (f.properties.layer === "constraint") colours[f.properties.constraint] = f.properties.colour;
+  });
+  const row = k => `<div><span class="swatch" style="background:${colours[k]}"></span>${k.replace(/_/g," ")}</div>`;
+  $("#legend").innerHTML =
+    `<div style="color:#e6eaf2;margin-bottom:5px;font-weight:600">Land use</div>` +
+    uses.map(row).join("") +
+    `<div style="color:#e6eaf2;margin:8px 0 5px;font-weight:600">Constraints</div>` +
+    lastData.report.constraints.filter(c => c.area_ha > 0).map(c => row(c.constraint)).join("");
+  $("#legend-panel").innerHTML = uses.map(row).join("");
+}
+
+function renderError(msg) {
+  $("#report").innerHTML = `<section class="pad"><h2>Report</h2>
+    <div class="warn bad">${msg}</div></section>`;
+}
+
+function renderReport(r, brief) {
+  const warnRows = r.warnings.map(w =>
+    `<div class="warn ${/DOES NOT FIT|UNVALIDATED/.test(w) ? "bad" : ""}">${w}</div>`).join("");
+
+  const alloc = r.allocation.map(a => `<tr>
+      <td>${a.use.replace(/_/g," ")}</td>
+      <td class="num">${fmt(a.target_ha)}</td>
+      <td class="num">${fmt(a.achieved_ha)}</td>
+      <td class="num" style="color:${Math.abs(a.variance_pct) > 5 ? "var(--warn)" : "var(--ink-dim)"}">
+        ${a.variance_pct > 0 ? "+" : ""}${fmt(a.variance_pct)}%</td>
+    </tr>`).join("");
+
+  const dwell = r.dwellings.map(d => `<tr>
+      <td>${d.band}</td><td class="num">${d.plots.toLocaleString()}</td>
+      <td class="num">${fmt(d.plot_area_typical_m2, 0)}</td>
+      <td class="num">${fmt(d.gross_ha)}</td></tr>`).join("");
+
+  const byCat = {};
+  r.facilities.forEach(f => (byCat[f.category] ||= []).push(f));
+  const facs = Object.entries(byCat).map(([cat, list]) => `
+      <tr><td colspan="4" style="color:var(--ink-faint);padding-top:9px;font-size:11px;
+          text-transform:uppercase;letter-spacing:.06em">${cat}</td></tr>` +
+      list.map(f => `<tr><td>${f.key.replace(/_/g," ")}</td>
+        <td class="num">${f.count}</td>
+        <td class="num">${fmt(f.total_area_ha, 2)}</td>
+        <td class="num muted">${f.catchment_m ? fmt(f.catchment_m, 0) + " m" : "–"}</td></tr>`).join("")
+  ).join("");
+
+  const i = r.infrastructure;
+  const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
+      <td>${c.constraint.replace(/_/g," ")}</td>
+      <td class="num">${fmt(c.area_ha, 1)}</td>
+      <td class="num muted" style="font-size:10.5px">${c.rule}</td></tr>`).join("");
+
+  $("#report").innerHTML = `
+    <section class="pad">
+      <h2>${r.project_name}</h2>
+      ${warnRows}
+      <div class="kv"><span>Gross site</span><span>${fmt(r.land.gross_site_ha)} ha</span></div>
+      <div class="kv"><span>Buildable after constraints</span><span>${fmt(r.land.buildable_ha)} ha</span></div>
+      <div class="kv"><span>Constrained</span><span>${fmt(r.land.constrained_ha)} ha (${fmt(r.land.constrained_pct)}%)</span></div>
+      <div class="kv"><span>Target population</span><span>${r.brief.target_population.toLocaleString()}</span></div>
+      <div class="kv"><span>Design population</span><span>${r.brief.design_population.toLocaleString()}</span></div>
+      <div class="kv"><span>Gross density</span><span>${fmt(r.brief.gross_density_pph, 1)} p/ha</span></div>
+      <div class="kv"><span>Total plots</span><span>${r.total_plots.toLocaleString()}</span></div>
+    </section>
+
+    <section class="pad"><h2>Land allocation</h2>
+      <table><thead><tr><th>Use</th><th>Target ha</th><th>Actual ha</th><th>Var</th></tr></thead>
+      <tbody>${alloc}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Dwelling schedule</h2>
+      <table><thead><tr><th>Band</th><th>Plots</th><th>Plot m&sup2;</th><th>Gross ha</th></tr></thead>
+      <tbody>${dwell}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Constraints applied</h2>
+      <table><thead><tr><th>Constraint</th><th>ha</th><th>Rule</th></tr></thead>
+      <tbody>${cons}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Facility schedule</h2>
+      <table><thead><tr><th>Facility</th><th>No.</th><th>ha</th><th>Catchment</th></tr></thead>
+      <tbody>${facs}</tbody></table>
+    </section>
+
+    <section class="pad"><h2>Engineering demand</h2>
+      <div class="kv"><span>Households</span><span>${fmt(i.households, 0)}</span></div>
+      <div class="kv"><span>Water, average day</span><span>${fmt(i.water_average_day_m3, 0)} m&sup3;/d</span></div>
+      <div class="kv"><span>Water, peak day</span><span>${fmt(i.water_peak_day_m3, 0)} m&sup3;/d</span></div>
+      <div class="kv"><span>Reservoir storage</span><span>${fmt(i.reservoir_storage_m3, 0)} m&sup3;</span></div>
+      <div class="kv"><span>Sewage, average day</span><span>${fmt(i.sewage_average_day_m3, 0)} m&sup3;/d</span></div>
+      <div class="kv"><span>Electrical demand</span><span>${fmt(i.electrical_demand_mva, 2)} MVA</span></div>
+      <div class="kv"><span>Solid waste</span><span>${fmt(i.solid_waste_tonnes_per_day, 1)} t/d</span></div>
+    </section>
+
+    <section class="pad"><h2>Provenance</h2>
+      <div class="kv"><span>Ruleset</span><span>${r.ruleset.jurisdiction} v${r.ruleset.version}</span></div>
+      <div class="kv"><span>Validated</span><span style="color:${r.ruleset.validated ? "var(--good)" : "var(--warn)"}">
+        ${r.ruleset.validated ? "yes" : "no — " + r.ruleset.placeholder_count + " placeholders"}</span></div>
+      <div class="kv"><span>Compute time</span><span>${fmt(Object.values(r.timings_ms).reduce((a,b)=>a+b,0), 0)} ms</span></div>
+    </section>`;
+}
+
+if (document.readyState === "loading")
+  document.addEventListener("DOMContentLoaded", generate);
+else
+  generate();
+</script>
+</body>
+</html>
