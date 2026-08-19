@@ -177,6 +177,11 @@ def scenarios(req: ScenarioRequest) -> dict:
 
 class ExportRequest(BaseModel):
     prompt: str | None = Field(default=None, min_length=8)
+    project_name: str | None = Field(
+        default=None, max_length=80,
+        description="Names the delivery. Without it a prompt read by the "
+                    "rule parser produces an untitled plan, and the archive "
+                    "reaching the client is called untitled.")
     site_area_ha: float | None = Field(default=None, gt=0)
     target_population: int | None = Field(default=None, gt=0)
     cell_size: float = Field(default=10.0, ge=5.0, le=50.0)
@@ -207,9 +212,12 @@ def export(req: ExportRequest) -> dict:
         if req.prompt:
             brief = (brief_agent.understand(req.prompt).brief if req.use_llm
                      else parse_prompt(req.prompt))
+            if req.project_name:
+                brief = brief.model_copy(
+                    update={"project_name": req.project_name})
         elif req.site_area_ha and req.target_population:
             brief = PlanningBrief(
-                project_name="Export",
+                project_name=req.project_name or "Export",
                 site_area_ha=req.site_area_ha,
                 target_population=req.target_population,
             )

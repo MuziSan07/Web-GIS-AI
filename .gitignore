@@ -12,3 +12,6 @@ data/raw/
 # Generated deliveries
 exports/
 *.zip
+
+# Client deliverables are built artefacts, not source
+deliverables/

@@ -8,8 +8,8 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
   :root {
-    --bg: #10131a; --panel: #171b24; --panel-2: #1e2430; --line: #2b3342;
-    --ink: #e6eaf2; --ink-dim: #97a1b5; --ink-faint: #6b7689;
+    --bg: #10131a; --panel: #171b24; --panel2: #1e2430; --line: #2b3342;
+    --ink: #e6eaf2; --dim: #97a1b5; --faint: #6b7689;
     --accent: #6ea8fe; --warn: #e0a458; --bad: #d1495b; --good: #5cb87a;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
   }
@@ -17,146 +17,218 @@
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg); color: var(--ink);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
     display: grid; grid-template-rows: auto 1fr; overflow: hidden;
   }
-
   header {
-    display: flex; align-items: center; gap: 16px;
-    padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
   }
-  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .2px; }
-  header .sub { color: var(--ink-faint); font-size: 12px; }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; }
+  header .sub { color: var(--faint); font-size: 12px; }
   .badge {
-    margin-left: auto; font: 11px/1 var(--mono); padding: 6px 10px;
-    border-radius: 4px; border: 1px solid var(--warn); color: var(--warn);
+    font: 11px/1 var(--mono); padding: 6px 10px; border-radius: 4px;
+    border: 1px solid var(--warn); color: var(--warn);
     background: rgba(224,164,88,.10); white-space: nowrap;
   }
+  .badge.ok { border-color: var(--good); color: var(--good);
+              background: rgba(92,184,122,.10); }
+  .badge.first { margin-left: auto; }
 
-  main { display: grid; grid-template-columns: 340px 1fr 380px; min-height: 0; }
+  main { display: grid; grid-template-columns: 320px 1fr 400px; min-height: 0; }
   .panel { background: var(--panel); overflow-y: auto; min-height: 0; }
   .panel.left { border-right: 1px solid var(--line); }
   .panel.right { border-left: 1px solid var(--line); }
-  .pad { padding: 16px; }
+  .pad { padding: 15px 16px; }
   h2 {
     font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
-    color: var(--ink-faint); margin: 0 0 10px; font-weight: 600;
+    color: var(--faint); margin: 0 0 10px; font-weight: 600;
   }
   section + section { border-top: 1px solid var(--line); }
 
   textarea {
-    width: 100%; min-height: 130px; resize: vertical; padding: 11px 12px;
+    width: 100%; min-height: 116px; resize: vertical; padding: 10px 11px;
     background: var(--bg); color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; font: 13px/1.55 inherit;
+    border-radius: 6px; font: 13px/1.5 inherit;
   }
   textarea:focus { outline: none; border-color: var(--accent); }
+  select {
+    width: 100%; margin-top: 9px; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    font: 13px inherit;
+  }
   button.primary {
-    width: 100%; margin-top: 10px; padding: 11px; border: 0; border-radius: 6px;
+    width: 100%; margin-top: 9px; padding: 11px; border: 0; border-radius: 6px;
     background: var(--accent); color: #0d1220; font-weight: 650; font-size: 13px;
     cursor: pointer;
   }
-  button.primary:disabled { opacity: .5; cursor: default; }
-  .examples { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  button.ghost {
+    width: 100%; margin-top: 8px; padding: 10px; border-radius: 6px;
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    font-size: 13px; cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  .examples { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
   .examples button {
-    text-align: left; padding: 9px 10px; border-radius: 5px; cursor: pointer;
-    background: var(--panel-2); border: 1px solid var(--line);
-    color: var(--ink-dim); font-size: 12px; line-height: 1.45;
+    text-align: left; padding: 9px 10px; border-radius: 6px; cursor: pointer;
+    background: var(--panel2); color: var(--dim); border: 1px solid var(--line);
+    font: 12px/1.45 inherit;
   }
-  .examples button:hover { border-color: var(--accent); color: var(--ink); }
+  .examples button:hover { color: var(--ink); border-color: var(--accent); }
 
-  #map { background: #0b0e14; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  td, th { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); }
-  th { color: var(--ink-faint); font-weight: 500; font-size: 11px; }
-  td:first-child, th:first-child { text-align: left; }
-  .num { font-family: var(--mono); font-size: 12px; }
+  .toggles label {
+    display: flex; align-items: center; gap: 9px; padding: 5px 0;
+    font-size: 12.5px; color: var(--dim); cursor: pointer;
+  }
+  .toggles input { accent-color: var(--accent); }
   .swatch {
-    display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-    margin-right: 7px; vertical-align: -1px;
+    width: 11px; height: 11px; border-radius: 2px; display: inline-block;
+    flex: none;
   }
-  .kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px; }
-  .kv span:last-child { font-family: var(--mono); }
-  .muted { color: var(--ink-dim); }
 
-  .warn {
-    border-left: 3px solid var(--warn); background: rgba(224,164,88,.07);
-    padding: 9px 11px; margin-bottom: 9px; font-size: 12px; color: #f0d3a8;
-    border-radius: 0 4px 4px 0;
-  }
-  .warn.bad { border-color: var(--bad); background: rgba(209,73,91,.09); color: #f3bec6; }
-
+  .mapwrap { position: relative; background: #0b0e14; min-height: 0; }
   .status {
     position: absolute; inset: 0; display: none; place-items: center;
-    background: rgba(11,14,20,.82); z-index: 5; font-size: 13px; color: var(--ink-dim);
+    background: rgba(11,14,20,.72); color: var(--dim); font-size: 13px; z-index: 5;
   }
   .status.on { display: grid; }
-  .mapwrap { position: relative; min-height: 0; }
   .legend {
     position: absolute; left: 12px; bottom: 12px; z-index: 4;
-    background: rgba(23,27,36,.94); border: 1px solid var(--line);
-    border-radius: 6px; padding: 10px 12px; font-size: 11.5px;
-    max-width: 210px; backdrop-filter: blur(4px);
+    background: rgba(23,27,36,.93); border: 1px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; font-size: 11.5px; max-width: 230px;
   }
-  .legend div { padding: 2px 0; color: var(--ink-dim); }
-  .foot { color: var(--ink-faint); font-size: 11px; padding: 12px 16px; line-height: 1.5; }
+  .legend div { padding: 2px 0; color: var(--dim);
+                display: flex; align-items: center; gap: 7px; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .tabs button {
+    flex: 1; padding: 11px 8px; background: none; border: 0; cursor: pointer;
+    color: var(--faint); font-size: 12px; font-weight: 600;
+    border-bottom: 2px solid transparent;
+  }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th {
+    text-align: left; font-weight: 600; color: var(--faint); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: .05em;
+    padding: 4px 6px 6px 0; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 4px 6px 4px 0; border-bottom: 1px solid rgba(43,51,66,.5);
+       color: var(--ink); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--dim); }
+
+  .kv { display: flex; justify-content: space-between; gap: 12px;
+        padding: 3px 0; font-size: 12.5px; }
+  .kv span:first-child { color: var(--dim); }
+  .warn {
+    background: rgba(224,164,88,.10); border-left: 2px solid var(--warn);
+    padding: 8px 10px; margin: 0 0 8px; font-size: 11.5px; color: #f0d3a8;
+    border-radius: 0 4px 4px 0; line-height: 1.45;
+  }
+  .warn.bad { background: rgba(209,73,91,.12); border-left-color: var(--bad);
+              color: #f0b4bc; }
+  .warn.good { background: rgba(92,184,122,.10); border-left-color: var(--good);
+               color: #b9e2c8; }
+  .foot { color: var(--faint); font-size: 11px; padding: 12px 16px; line-height: 1.55; }
+  .rank { font: 11px var(--mono); color: var(--faint); }
+  .best td { color: var(--good); }
+  .file { font: 11.5px var(--mono); color: var(--dim); padding: 3px 0; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Master Plan Copilot</h1>
-  <span class="sub">Spatial planning engine &mdash; prototype</span>
-  <span class="badge" id="ruleset-badge">checking ruleset&hellip;</span>
+  <span class="sub">Spatial planning engine for new town design</span>
+  <span class="badge first" id="agent-badge">checking model</span>
+  <span class="badge" id="ruleset-badge">checking rules</span>
 </header>
 
 <main>
   <div class="panel left">
     <section class="pad">
       <h2>Planning brief</h2>
-      <textarea id="prompt" spellcheck="false">Plan a sustainable 600 hectare settlement for 25,000 people. Use high-density plots. Provide 6 primary schools and 2 secondary schools, clinics, police and fire stations. Strictly avoid environmentally sensitive areas and optimise for low infrastructure cost.</textarea>
+      <textarea id="prompt" spellcheck="false">Plan a sustainable 600 hectare settlement for 25,000 people. Use high density plots. Provide 6 primary schools and 2 secondary schools, clinics, police and fire stations. Strictly avoid environmentally sensitive areas and keep infrastructure cost low.</textarea>
+      <select id="detail">
+        <option value="20" selected>Detail: fast, 20 metre grid</option>
+        <option value="15">Detail: normal, 15 metre grid</option>
+        <option value="10">Detail: fine, 10 metre grid</option>
+      </select>
       <button class="primary" id="go">Generate master plan</button>
+      <button class="ghost" id="compare">Compare four town shapes</button>
+      <button class="ghost" id="download">Prepare files to download</button>
       <div class="examples" id="examples"></div>
     </section>
+
     <section class="pad">
-      <h2>Land use legend</h2>
-      <div id="legend-panel"></div>
+      <h2>Map layers</h2>
+      <div class="toggles" id="toggles"></div>
     </section>
+
     <div class="foot">
-      Roads are routed by least-cost path over a terrain and constraint surface,
-      then buffered to the reserve widths in the ruleset. Blocks are what remains
-      once reserves are removed. Parcel subdivision and 3D are the next modules.
+      Roads are routed over a cost surface built from slope and constraints,
+      then widened to the reserve widths in the rules. Blocks are what remains
+      once reserves are removed. Water, sewer and power all follow the road
+      reserve, because that is the only land the council owns.
     </div>
   </div>
 
   <div class="mapwrap">
     <div id="map" style="position:absolute; inset:0;"></div>
-    <div class="status" id="status">Generating&hellip;</div>
+    <div class="status" id="status">Working</div>
     <div class="legend" id="legend"></div>
   </div>
 
-  <div class="panel right" id="report">
-    <section class="pad"><h2>Report</h2>
+  <div class="panel right">
+    <div class="tabs">
+      <button class="on" data-tab="report">Report</button>
+      <button data-tab="options">Options</button>
+      <button data-tab="files">Files</button>
+    </div>
+    <div id="tab-report"><section class="pad"><h2>Report</h2>
       <p class="muted" style="font-size:12.5px">Generate a plan to see the schedule.</p>
-    </section>
+    </section></div>
+    <div id="tab-options" style="display:none"><section class="pad"><h2>Town shape options</h2>
+      <p class="muted" style="font-size:12.5px">Press Compare four town shapes. The engine builds four plans on the same land and scores each one.</p>
+    </section></div>
+    <div id="tab-files" style="display:none"><section class="pad"><h2>Files</h2>
+      <p class="muted" style="font-size:12.5px">Press Prepare files to download. The engine writes GIS, CAD, BIM, schedules and a printed plan set.</p>
+    </section></div>
   </div>
 </main>
 
 <script>
 const EXAMPLES = [
-  "Plan a 600 hectare settlement for 25,000 people with high-density plots, avoiding wetlands.",
-  "Design a low-density 600 ha town for 12,000 residents with 3 primary schools and no industrial area.",
-  "Create a compact 450 hectare settlement for 18,000 people optimised for walkability and low infrastructure cost.",
-  "Plan 600 ha providing 5,000 residential plots, a market, 2 secondary schools and high environmental protection."
+  "Plan a 600 hectare settlement for 25,000 people with high density plots, avoiding wetlands.",
+  "Design a low density 600 hectare town for 12,000 residents with 3 primary schools and no industrial area.",
+  "Create a compact 450 hectare settlement for 18,000 people that is easy to walk around and cheap to service.",
+  "Plan 600 hectares providing 5,000 residential plots, a market, 2 secondary schools and strong environmental protection."
+];
+
+const LAYER_GROUPS = [
+  {key: "landuse",  label: "Land use",        colour: "#f6e2b3", ids: ["zones-fill"]},
+  {key: "cons",     label: "Constraints",     colour: "#d1495b", ids: ["cons-fill"]},
+  {key: "roads",    label: "Roads",           colour: "#c0392b", ids: ["reserve-fill", "roads-line"]},
+  {key: "blocks",   label: "Blocks",          colour: "#8a93a6", ids: ["blocks-fill", "blocks-line"]},
+  {key: "parcels",  label: "Plots",           colour: "#c9a227", ids: ["parcels-fill", "parcels-line"]},
+  {key: "fac",      label: "Facilities",      colour: "#8c5aa8", ids: ["fac-fill", "fac-line"]},
+  {key: "water",    label: "Water mains",     colour: "#1f78b4", ids: ["water-line"]},
+  {key: "sewer",    label: "Sewers",          colour: "#8b5a2b", ids: ["sewer-line", "pump-circle"]},
+  {key: "power",    label: "Power lines",     colour: "#e6ab02", ids: ["power-line"]},
+  {key: "drain",    label: "Natural drainage", colour: "#4daf4a", ids: ["drain-line", "outfall-circle", "culvert-circle"]},
+  {key: "works",    label: "Engineering works", colour: "#984ea3", ids: ["works-fill", "works-line"]}
 ];
 
 const $ = s => document.querySelector(s);
-const fmt = (n, d = 1) => n == null ? "–"
+const fmt = (n, d = 1) => n == null ? "n/a"
   : Number(n).toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+const words = s => String(s).replace(/_/g, " ");
 
-let map, lastData = null;
+let map, lastData = null, busy = false;
 
-// Blank canvas style: the plan is the content, so no basemap competes with it.
 map = new maplibregl.Map({
   container: "map",
   style: { version: 8, sources: {}, layers: [
@@ -174,46 +246,134 @@ EXAMPLES.forEach(text => {
   $("#examples").appendChild(b);
 });
 
+LAYER_GROUPS.forEach(g => {
+  const l = document.createElement("label");
+  l.innerHTML = `<input type="checkbox" checked data-group="${g.key}">
+    <span class="swatch" style="background:${g.colour}"></span>${g.label}`;
+  l.querySelector("input").onchange = e => {
+    g.ids.forEach(id => {
+      if (map.getLayer(id))
+        map.setLayoutProperty(id, "visibility", e.target.checked ? "visible" : "none");
+    });
+  };
+  $("#toggles").appendChild(l);
+});
+
+document.querySelectorAll(".tabs button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    ["report", "options", "files"].forEach(t =>
+      $("#tab-" + t).style.display = t === b.dataset.tab ? "" : "none");
+  };
+});
+
 fetch("/api/standards").then(r => r.json()).then(s => {
   const badge = $("#ruleset-badge");
   badge.textContent = s.validated
-    ? `ruleset ${s.version} — validated`
-    : `UNVALIDATED RULESET — ${s.placeholder_paths.length} placeholder rules`;
-  if (s.validated) { badge.style.borderColor = "var(--good)"; badge.style.color = "var(--good)"; }
+    ? `rules ${s.version} checked`
+    : `rules not checked yet, ${s.placeholder_paths.length} values to confirm`;
+  if (s.validated) badge.classList.add("ok");
   badge.title = s.warning || "";
 });
 
+fetch("/api/agent").then(r => r.json()).then(a => {
+  const badge = $("#agent-badge");
+  badge.textContent = a.reachable
+    ? `AI model ${a.default_model} running on this machine`
+    : "AI model offline, using rule reader";
+  if (a.reachable) badge.classList.add("ok");
+});
+
 $("#go").onclick = generate;
+$("#compare").onclick = compare;
+$("#download").onclick = download;
 $("#prompt").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") generate();
 });
 
+function setBusy(on, message) {
+  busy = on;
+  $("#status").classList.toggle("on", on);
+  if (message) $("#status").textContent = message;
+  ["#go", "#compare", "#download"].forEach(s => $(s).disabled = on);
+}
+
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Request failed");
+  return data;
+}
+
 async function generate() {
   const prompt = $("#prompt").value.trim();
-  if (prompt.length < 8) return;
-  $("#status").classList.add("on");
-  $("#go").disabled = true;
+  if (prompt.length < 8 || busy) return;
+  setBusy(true, "Reading the brief and building the plan");
   try {
-    const res = await fetch("/api/plan/prompt", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({prompt})
+    const data = await post("/api/plan/prompt", {
+      prompt, cell_size: Number($("#detail").value)
     });
-    const data = await res.json();
-    if (!res.ok) { renderError(data.detail || "Request failed"); return; }
     lastData = data;
-    renderReport(data.report, data.brief);
+    renderReport(data.report, data.understanding);
     whenMapReady(() => draw(data.geojson));
   } catch (err) {
-    renderError(String(err));
+    $("#tab-report").innerHTML =
+      `<section class="pad"><h2>Report</h2><div class="warn bad">${err.message}</div></section>`;
   } finally {
-    $("#status").classList.remove("on");
-    $("#go").disabled = false;
+    setBusy(false);
   }
 }
 
-// The report must never depend on the map. If WebGL is slow or unavailable the
-// schedule still renders; only the drawing waits.
+async function compare() {
+  if (busy) return;
+  setBusy(true, "Building four plans on the same land and scoring each");
+  showTab("options");
+  try {
+    const data = await post("/api/scenarios", {
+      prompt: $("#prompt").value.trim(), cell_size: 25, use_llm: false
+    });
+    renderOptions(data);
+  } catch (err) {
+    $("#tab-options").innerHTML =
+      `<section class="pad"><h2>Town shape options</h2><div class="warn bad">${err.message}</div></section>`;
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function download() {
+  if (busy) return;
+  setBusy(true, "Writing GIS, CAD, BIM, schedules and the plan set");
+  showTab("files");
+  try {
+    const data = await post("/api/export", {
+      prompt: $("#prompt").value.trim(), cell_size: 20, use_llm: false,
+      project_name: lastData ? lastData.report.project_name : null
+    });
+    renderFiles(data);
+  } catch (err) {
+    $("#tab-files").innerHTML =
+      `<section class="pad"><h2>Files</h2><div class="warn bad">${err.message}</div></section>`;
+  } finally {
+    setBusy(false);
+  }
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b => {
+    b.classList.toggle("on", b.dataset.tab === name);
+  });
+  ["report", "options", "files"].forEach(t =>
+    $("#tab-" + t).style.display = t === name ? "" : "none");
+}
+
+// The report must never wait for the map. If WebGL is slow the numbers still
+// arrive; only the drawing waits.
 function whenMapReady(fn) {
   if (map.isStyleLoaded()) fn();
   else map.once("load", fn);
@@ -221,25 +381,26 @@ function whenMapReady(fn) {
 
 function draw(fc) {
   const pick = l => ({type: "FeatureCollection",
-                     features: fc.features.filter(f => f.properties.layer === l)});
-  const zones = pick("zone"), cons = pick("constraint"), bound = pick("boundary");
-  const exist = pick("existing"), roads = pick("road");
-  const blocks = pick("block"), reserve = pick("road_reserve");
-  const parcels = pick("parcel"), facilities = pick("facility");
-  const envelopes = pick("envelope");
+                      features: fc.features.filter(f => f.properties.layer === l)});
+  const svc = s => ({type: "FeatureCollection",
+                     features: fc.features.filter(f =>
+                       f.properties.layer === "service_run" && f.properties.service === s)});
 
-  const set = (id, data) => {
+  const sets = {
+    zones: pick("zone"), cons: pick("constraint"), bound: pick("boundary"),
+    exist: pick("existing"), roads: pick("road"), blocks: pick("block"),
+    reserve: pick("road_reserve"), parcels: pick("parcel"),
+    facilities: pick("facility"), works: pick("service_site"),
+    water: svc("water"), sewer: svc("sewer"), power: svc("electricity"),
+    pumps: pick("pump_station"), drain: pick("drainage_channel"),
+    outfalls: pick("outfall"), culverts: pick("culvert")
+  };
+  Object.entries(sets).forEach(([id, data]) => {
     if (map.getSource(id)) map.getSource(id).setData(data);
     else map.addSource(id, {type: "geojson", data});
-  };
-  set("zones", zones); set("cons", cons); set("bound", bound); set("exist", exist);
-  set("roads", roads); set("blocks", blocks); set("reserve", reserve);
-  set("parcels", parcels); set("facilities", facilities);
-  set("envelopes", envelopes);
+  });
 
   if (!map.getLayer("zones-fill")) {
-    // Zoning sits underneath as context; the blocks carved out by the road
-    // network are the actual developable land, so they read strongest.
     map.addLayer({id: "zones-fill", type: "fill", source: "zones",
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.22}});
     map.addLayer({id: "cons-fill", type: "fill", source: "cons",
@@ -250,295 +411,291 @@ function draw(fc) {
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.88}});
     map.addLayer({id: "blocks-line", type: "line", source: "blocks",
       paint: {"line-color": "#11151d", "line-width": 0.35, "line-opacity": 0.7}});
-    // Individual plots only resolve when zoomed in; below that they read as
-    // noise and the block structure is the useful level of detail.
-    map.addLayer({id: "parcels-fill", type: "fill", source: "parcels",
-      minzoom: 14,
+    map.addLayer({id: "parcels-fill", type: "fill", source: "parcels", minzoom: 14,
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.9}});
-    map.addLayer({id: "parcels-line", type: "line", source: "parcels",
-      minzoom: 15,
+    map.addLayer({id: "parcels-line", type: "line", source: "parcels", minzoom: 15,
       paint: {"line-color": "#6b5320", "line-width": 0.4, "line-opacity": 0.8}});
-    // The building envelope: what may actually be built after setbacks. Only
-    // meaningful once individual plots are legible.
-    map.addLayer({id: "env-fill", type: "fill", source: "envelopes",
-      minzoom: 16,
-      paint: {"fill-color": "#6b5320", "fill-opacity": 0.55}});
     map.addLayer({id: "roads-line", type: "line", source: "roads",
       paint: {"line-color": ["get", "colour"], "line-width": ["get", "width_px"],
               "line-opacity": 0.95}});
+
+    // Services sit above the roads they run in, and below the labels.
+    map.addLayer({id: "drain-line", type: "line", source: "drain",
+      paint: {"line-color": "#4daf4a", "line-width": 2.2, "line-opacity": 0.85}});
+    map.addLayer({id: "water-line", type: "line", source: "water",
+      paint: {"line-color": "#1f78b4", "line-width": 1.1, "line-opacity": 0.9}});
+    map.addLayer({id: "sewer-line", type: "line", source: "sewer",
+      paint: {"line-color": "#b5762f", "line-width": 1.1, "line-opacity": 0.9}});
+    map.addLayer({id: "power-line", type: "line", source: "power",
+      paint: {"line-color": "#e6ab02", "line-width": 1.0, "line-opacity": 0.75}});
+
+    map.addLayer({id: "works-fill", type: "fill", source: "works",
+      paint: {"fill-color": "#984ea3", "fill-opacity": 0.9}});
+    map.addLayer({id: "works-line", type: "line", source: "works",
+      paint: {"line-color": "#e6eaf2", "line-width": 1.0}});
+    map.addLayer({id: "pump-circle", type: "circle", source: "pumps",
+      paint: {"circle-radius": 3.4, "circle-color": "#b5762f",
+              "circle-stroke-color": "#0b0e14", "circle-stroke-width": 1}});
+    map.addLayer({id: "outfall-circle", type: "circle", source: "outfalls",
+      paint: {"circle-radius": 5, "circle-color": "#4daf4a",
+              "circle-stroke-color": "#0b0e14", "circle-stroke-width": 1.2}});
+    map.addLayer({id: "culvert-circle", type: "circle", source: "culverts", minzoom: 13,
+      paint: {"circle-radius": 2.4, "circle-color": "#9aa4b5"}});
+
     map.addLayer({id: "fac-fill", type: "fill", source: "facilities",
       paint: {"fill-color": ["get", "colour"], "fill-opacity": 0.92}});
     map.addLayer({id: "fac-line", type: "line", source: "facilities",
       paint: {"line-color": "#0b0e14", "line-width": 0.8}});
-    map.addLayer({id: "fac-label", type: "symbol", source: "facilities",
-      minzoom: 13.5,
-      layout: {"text-field": ["get", "key"], "text-size": 10,
-               "text-offset": [0, 0.6], "text-allow-overlap": false},
-      paint: {"text-color": "#e6eaf2", "text-halo-color": "#0b0e14",
-              "text-halo-width": 1.4}});
+    // No text layer for facility names. MapLibre needs a glyph server to draw
+    // any label, and pointing at a hosted one would make this page depend on
+    // the internet to render a plan. Names are on click instead.
     map.addLayer({id: "exist-line", type: "line", source: "exist",
       paint: {"line-color": "#c8ccd6", "line-width": 2, "line-dasharray": [3, 2]}});
     map.addLayer({id: "bound-line", type: "line", source: "bound",
       paint: {"line-color": "#e6eaf2", "line-width": 1.8}});
 
-    map.on("click", "fac-fill", e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({closeButton: false})
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>${p.key.replace(/_/g," ")}</b><br>${p.category}<br>
-          ${fmt(p.area_ha, 2)} ha${p.catchment_m > 0
-            ? `<br>catchment ${fmt(p.catchment_m, 0)} m` : ""}</div>`)
-        .addTo(map);
-    });
-    map.on("click", "parcels-fill", e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({closeButton: false})
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>Plot ${p.plot_number}</b><br>${p.band} density<br>
-          ${fmt(p.area_m2, 0)} m&sup2;<br>${fmt(p.frontage_m, 1)} m frontage</div>`)
-        .addTo(map);
-    });
-    map.on("click", "blocks-fill", e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({closeButton: false})
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>Block ${p.block_id}</b><br>${p.use.replace(/_/g," ")}<br>
-          ${fmt(p.area_ha, 2)} ha${p.indicative_plots > 0
-            ? `<br>~${p.indicative_plots} plots` : ""}</div>`)
-        .addTo(map);
-    });
-    map.on("click", "roads-line", e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({closeButton: false})
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>${p.road_class.replace(/_/g," ")}</b><br>
-          ${fmt(p.reserve_width_m, 0)} m reserve<br>
-          ${fmt(p.length_m, 0)} m long</div>`)
-        .addTo(map);
-    });
-    map.on("click", "cons-fill", e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({closeButton: false})
-        .setLngLat(e.lngLat)
-        .setHTML(`<div style="font:12px system-ui;color:#111">
-          <b>${p.constraint.replace(/_/g," ")}</b><br>
-          <span style="color:#555">${p.rule}</span></div>`)
-        .addTo(map);
-    });
-    ["blocks-fill","cons-fill","roads-line","fac-fill","parcels-fill"].forEach(l => {
-      map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
-      map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
-    });
+    // Registered from the widest feature to the narrowest, because the last
+    // handler to run is the one whose text stays on screen. A plot is more
+    // useful to read than the zone it sits in.
+    popup("cons-fill", p => `<b>${words(p.constraint)}</b><br><span style="color:#555">${p.rule}</span>`);
+    popup("blocks-fill", p => `<b>Block ${p.block_id}</b><br>${words(p.use)}<br>${fmt(p.area_ha, 2)} ha`);
+    popup("roads-line", p => `<b>${words(p.road_class)}</b><br>${fmt(p.reserve_width_m, 0)} m reserve<br>
+      ${fmt(p.length_m, 0)} m long`);
+    popup("power-line", p => `<b>Power line</b><br>${fmt(p.load_kva, 0)} kVA`);
+    popup("water-line", p => `<b>Water main</b><br>${p.size_mm} mm<br>${fmt(p.flow_l_per_s, 1)} litres per second`);
+    popup("sewer-line", p => `<b>Sewer</b><br>${p.size_mm} mm<br>fall ${fmt(p.gradient_pct, 2)} percent
+      ${p.pumped ? "<br>pumped rising main" : ""}`);
+    popup("works-fill", p => `<b>${p.label}</b><br>${fmt(p.area_ha, 2)} ha<br>
+      ${p.compliant ? "meets the standard" : "does not meet the standard"}`);
+    popup("parcels-fill", p => `<b>Plot ${p.plot_number}</b><br>${p.band} density<br>
+      ${fmt(p.area_m2, 0)} m2<br>${fmt(p.frontage_m, 1)} m road frontage`);
+    popup("fac-fill", p => `<b>${words(p.key)}</b><br>${p.category}<br>${fmt(p.area_ha, 2)} ha`);
   }
 
-  // Fit to the site boundary.
-  const coords = bound.features.flatMap(f =>
+  const coords = sets.bound.features.flatMap(f =>
     f.geometry.type === "Polygon" ? f.geometry.coordinates.flat()
                                   : f.geometry.coordinates.flat(2));
   if (coords.length) {
-    const b = coords.reduce((acc, c) => [
-      Math.min(acc[0], c[0]), Math.min(acc[1], c[1]),
-      Math.max(acc[2], c[0]), Math.max(acc[3], c[1])
-    ], [180, 90, -180, -90]);
-    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {padding: 48, duration: 700});
+    const b = coords.reduce((a, c) => [Math.min(a[0], c[0]), Math.min(a[1], c[1]),
+                                       Math.max(a[2], c[0]), Math.max(a[3], c[1])],
+                            [180, 90, -180, -90]);
+    map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {padding: 44, duration: 700});
   }
-
   drawLegend();
+}
+
+// One popup, reused. A click on a plot lands on the plot, the block under it
+// and the zone under that, so a fresh popup per layer stacked three boxes on
+// top of each other and left them all on the map.
+const sharedPopup = new maplibregl.Popup({closeButton: false});
+
+function popup(layer, html) {
+  map.on("click", layer, e => {
+    sharedPopup
+      .setLngLat(e.lngLat)
+      .setHTML(`<div style="font:12px system-ui;color:#111">${html(e.features[0].properties)}</div>`)
+      .addTo(map);
+  });
+  map.on("mouseenter", layer, () => map.getCanvas().style.cursor = "pointer");
+  map.on("mouseleave", layer, () => map.getCanvas().style.cursor = "");
 }
 
 function drawLegend() {
   if (!lastData) return;
-  const uses = lastData.report.allocation.map(a => a.use);
   const colours = {};
   lastData.geojson.features.forEach(f => {
     if (f.properties.layer === "zone") colours[f.properties.use] = f.properties.colour;
-    if (f.properties.layer === "constraint") colours[f.properties.constraint] = f.properties.colour;
   });
-  const row = k => `<div><span class="swatch" style="background:${colours[k]}"></span>${k.replace(/_/g," ")}</div>`;
+  const row = (label, colour) =>
+    `<div><span class="swatch" style="background:${colour}"></span>${words(label)}</div>`;
   $("#legend").innerHTML =
     `<div style="color:#e6eaf2;margin-bottom:5px;font-weight:600">Land use</div>` +
-    uses.map(row).join("") +
-    `<div style="color:#e6eaf2;margin:8px 0 5px;font-weight:600">Constraints</div>` +
-    lastData.report.constraints.filter(c => c.area_ha > 0).map(c => row(c.constraint)).join("");
-  $("#legend-panel").innerHTML = uses.map(row).join("");
+    Object.entries(colours).map(([k, v]) => row(k, v)).join("") +
+    `<div style="color:#e6eaf2;margin:8px 0 5px;font-weight:600">Services</div>` +
+    row("water", "#1f78b4") + row("sewer", "#b5762f") +
+    row("power", "#e6ab02") + row("natural drainage", "#4daf4a");
 }
 
-function renderError(msg) {
-  $("#report").innerHTML = `<section class="pad"><h2>Report</h2>
-    <div class="warn bad">${msg}</div></section>`;
-}
-
-function renderReport(r, brief) {
-  const warnRows = r.warnings.map(w =>
-    `<div class="warn ${/DOES NOT FIT|UNVALIDATED/.test(w) ? "bad" : ""}">${w}</div>`).join("");
-
-  const alloc = r.allocation.map(a => `<tr>
-      <td>${a.use.replace(/_/g," ")}</td>
-      <td class="num">${fmt(a.target_ha)}</td>
-      <td class="num">${fmt(a.achieved_ha)}</td>
-      <td class="num" style="color:${Math.abs(a.variance_pct) > 5 ? "var(--warn)" : "var(--ink-dim)"}">
-        ${a.variance_pct > 0 ? "+" : ""}${fmt(a.variance_pct)}%</td>
-    </tr>`).join("");
-
-  const dwell = r.dwellings.map(d => `<tr>
-      <td>${d.band}</td><td class="num">${d.plots.toLocaleString()}</td>
-      <td class="num">${fmt(d.plot_area_typical_m2, 0)}</td>
-      <td class="num">${fmt(d.gross_ha)}</td></tr>`).join("");
-
-  const byCat = {};
-  r.facilities.forEach(f => (byCat[f.category] ||= []).push(f));
-  const facs = Object.entries(byCat).map(([cat, list]) => `
-      <tr><td colspan="4" style="color:var(--ink-faint);padding-top:9px;font-size:11px;
-          text-transform:uppercase;letter-spacing:.06em">${cat}</td></tr>` +
-      list.map(f => `<tr><td>${f.key.replace(/_/g," ")}</td>
-        <td class="num">${f.count}</td>
-        <td class="num">${fmt(f.total_area_ha, 2)}</td>
-        <td class="num muted">${f.catchment_m ? fmt(f.catchment_m, 0) + " m" : "–"}</td></tr>`).join("")
-  ).join("");
-
-  const roadRows = r.roads.by_class.map(c => `<tr>
-      <td>${c.road_class.replace(/_/g," ")}</td>
-      <td class="num">${c.segments}</td>
-      <td class="num">${fmt(c.length_km, 2)}</td></tr>`).join("");
-
-  const blockRows = r.blocks.by_use.map(b => `<tr>
-      <td>${b.use.replace(/_/g," ")}</td>
-      <td class="num">${b.blocks}</td>
-      <td class="num">${fmt(b.area_ha, 1)}</td>
-      <td class="num">${b.indicative_plots ? b.indicative_plots.toLocaleString() : "–"}</td>
-    </tr>`).join("");
-
-  const targetByBand = Object.fromEntries(r.dwellings.map(d => [d.band, d.plots]));
-  const cadVar = r.total_plots
-    ? (r.cadastre.total_plots - r.total_plots) / r.total_plots * 100 : 0;
-  const parcelRows = r.cadastre.by_band.map(b => `<tr>
-      <td>${b.band}</td>
-      <td class="num">${b.plots.toLocaleString()}</td>
-      <td class="num muted">${(targetByBand[b.band] || 0).toLocaleString()}</td>
-      <td class="num">${fmt(b.mean_plot_m2, 0)}</td></tr>`).join("");
-
-  const reqByKey = Object.fromEntries(r.facilities.map(f => [f.key, f.count]));
-  const sitedRows = r.facility_siting.by_type.map(t => {
-    const cov = t.coverage_pct == null ? "–" : fmt(t.coverage_pct, 0) + "%";
-    const covColour = t.coverage_pct == null ? "var(--ink-dim)"
-      : t.coverage_pct < 70 ? "var(--warn)" : "var(--ink)";
-    const shortfall = t.unplaced > 0;
-    return `<tr>
-      <td>${t.key.replace(/_/g," ")}</td>
-      <td class="num muted">${reqByKey[t.key] || t.sited}</td>
-      <td class="num" style="color:${shortfall ? "var(--warn)" : "var(--ink)"}">${t.sited}</td>
-      <td class="num" style="color:${covColour}">${cov}</td></tr>`;
+function renderOptions(d) {
+  const rows = d.scenarios.map((s, i) => {
+    const m = Object.fromEntries(s.metrics.map(x => [x.name, x]));
+    const best = s.form === d.recommended;
+    return `<tr class="${best ? "best" : ""}">
+      <td>${words(s.form)} ${best ? '<span class="rank">best</span>' : ""}</td>
+      <td class="num">${fmt(s.overall, 1)}</td>
+      <td class="num">${fmt(m.infrastructure_efficiency.score, 0)}</td>
+      <td class="num">${fmt(m.accessibility.score, 0)}</td>
+      <td class="num">${fmt(m.environmental_suitability.score, 0)}</td>
+      <td class="num">${s.plots.toLocaleString()}</td></tr>`;
   }).join("");
 
-  const dc = r.development_control;
-  const dcRows = dc.by_band.map(x => `<tr>
-      <td>${x.band}</td>
-      <td class="num">${x.plots.toLocaleString()}</td>
-      <td class="num">${fmt(x.mean_envelope_m2, 0)}</td>
-      <td class="num">${fmt(x.permitted_floor_area_m2, 0)}</td></tr>`).join("");
+  const best = d.scenarios[0];
+  const why = d.recommended_because.map(r => `<div class="kv"><span>${r}</span></div>`).join("");
+  const detail = best.metrics.map(m => `<tr>
+      <td>${words(m.name)}</td><td class="num">${fmt(m.score, 0)}</td>
+      <td class="muted" style="font-size:11px">${m.explanation}</td></tr>`).join("");
 
-  const i = r.infrastructure;
-  const cons = r.constraints.filter(c => c.area_ha > 0).map(c => `<tr>
-      <td>${c.constraint.replace(/_/g," ")}</td>
-      <td class="num">${fmt(c.area_ha, 1)}</td>
-      <td class="num muted" style="font-size:10.5px">${c.rule}</td></tr>`).join("");
+  $("#tab-options").innerHTML = `
+    <section class="pad">
+      <h2>Town shape options</h2>
+      <div class="warn good">Best option: ${words(d.recommended)}</div>
+      <table><thead><tr><th>Shape</th><th class="num">Score</th><th class="num">Cost</th>
+        <th class="num">Access</th><th class="num">Land</th><th class="num">Plots</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <p class="muted" style="font-size:11px;margin:9px 0 0">
+        All four plans are built on the same land with the same population, so
+        any difference comes from the shape alone.</p>
+    </section>
+    <section class="pad"><h2>Why this one won</h2>${why || '<p class="muted" style="font-size:12px">Scores were close.</p>'}</section>
+    <section class="pad"><h2>How the best option scored</h2>
+      <table><thead><tr><th>Measure</th><th class="num">Score</th><th>Measured value</th></tr></thead>
+      <tbody>${detail}</tbody></table></section>
+    <section class="pad"><h2>What this shape does</h2>
+      <p class="muted" style="font-size:12px">${best.rationale}</p></section>`;
+}
 
-  $("#report").innerHTML = `
+function renderFiles(d) {
+  const rows = d.outputs.map(o => {
+    const name = (o.path || o.directory || "").split(/[\\/]/).pop();
+    const kind = o.format || "Schedules";
+    // Each writer reports what it knows about, and they do not share a shape:
+    // a DXF has layers and entities but no feature count, a plan set has
+    // sheets, a schedule set has row counts. Read what is there.
+    const n = v => v == null ? null : Number(v).toLocaleString();
+    let detail = "";
+    if (o.features != null) detail = `${o.layers} layers, ${n(o.features)} features`;
+    else if (o.entities != null) detail = `${o.layers} layers, ${n(o.entities)} lines, ${n(o.labels)} plot numbers`;
+    else if (o.sheet_count != null) detail = `${o.sheet_count} sheets at ${o.scale} on ${o.sheet_size}`;
+    else if (o.zones != null) detail = `${n(o.zones)} plots, ${n(o.envelopes)} building envelopes`;
+    else if (o.rows != null) detail = n(Object.values(o.rows).reduce((a, b) => a + b, 0)) + " rows";
+    return `<tr><td>${name}</td><td class="muted">${kind}</td>
+      <td class="muted" style="font-size:11px">${detail}</td></tr>`;
+  }).join("");
+
+  const notes = d.warnings.slice(0, 6).map(w => `<div class="warn">${w}</div>`).join("");
+
+  $("#tab-files").innerHTML = `
+    <section class="pad"><h2>Files written</h2>
+      <table><thead><tr><th>File</th><th>Format</th><th>Contents</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="kv" style="margin-top:9px"><span>Zip archive</span>
+        <span class="file">${(d.archive || "").split(/[\\/]/).pop()}</span></div>
+      <p class="muted" style="font-size:11px;margin:9px 0 0">
+        Written to the server. GeoPackage opens in QGIS and ArcGIS. DXF opens in
+        AutoCAD and Civil 3D. IFC opens in Revit and Archicad.</p>
+    </section>
+    <section class="pad"><h2>Notes for the client</h2>${notes}</section>`;
+}
+
+function renderReport(r, understanding) {
+  const warnRows = r.warnings.slice(0, 14).map(w =>
+    `<div class="warn ${/not fit|cannot|not physically|NOT/i.test(w) ? "bad" : ""}">${w}</div>`).join("");
+
+  const alloc = r.allocation.map(a => `<tr>
+      <td>${words(a.use)}</td><td class="num">${fmt(a.target_ha)}</td>
+      <td class="num">${fmt(a.achieved_ha)}</td>
+      <td class="num" style="color:${Math.abs(a.variance_pct) > 5 ? "var(--warn)" : "var(--dim)"}">
+        ${a.variance_pct > 0 ? "+" : ""}${fmt(a.variance_pct)}%</td></tr>`).join("");
+
+  const roadRows = r.roads.by_class.map(c => `<tr>
+      <td>${words(c.road_class)}</td><td class="num">${c.segments}</td>
+      <td class="num">${fmt(c.length_km, 2)}</td></tr>`).join("");
+
+  const sitedRows = r.facility_siting.by_type.map(t => `<tr>
+      <td>${words(t.key)}</td><td class="num">${t.sited}</td>
+      <td class="num" style="color:${t.coverage_pct != null && t.coverage_pct < 70 ? "var(--warn)" : "var(--ink)"}">
+        ${t.coverage_pct == null ? "n/a" : fmt(t.coverage_pct, 0) + "%"}</td></tr>`).join("");
+
+  const e = r.engineering, i = r.infrastructure, dc = r.development_control;
+
+  const worksRows = (e.works.sited || []).map(w => `<tr>
+      <td>${w.label}</td><td class="num">${fmt(w.area_ha, 2)} ha</td>
+      <td style="color:${w.compliant ? "var(--good)" : "var(--warn)"}">
+        ${w.compliant ? "ok" : "check"}</td></tr>`).join("");
+  const missing = (e.works.unplaced || []).map(u => `<tr>
+      <td>${words(u.key)}</td><td colspan="2" class="muted" style="font-size:11px">${u.reason}</td></tr>`).join("");
+
+  const brief = understanding ? `
+    <section class="pad"><h2>What the AI read from your brief</h2>
+      ${(understanding.assumptions || []).map(a => `<div class="kv"><span>${a}</span></div>`).join("")}
+      <div class="kv"><span>Read by</span><span>${understanding.model || "rule reader"}</span></div>
+    </section>` : "";
+
+  $("#tab-report").innerHTML = `
     <section class="pad">
       <h2>${r.project_name}</h2>
       ${warnRows}
-      <div class="kv"><span>Gross site</span><span>${fmt(r.land.gross_site_ha)} ha</span></div>
-      <div class="kv"><span>Buildable after constraints</span><span>${fmt(r.land.buildable_ha)} ha</span></div>
-      <div class="kv"><span>Constrained</span><span>${fmt(r.land.constrained_ha)} ha (${fmt(r.land.constrained_pct)}%)</span></div>
-      <div class="kv"><span>Target population</span><span>${r.brief.target_population.toLocaleString()}</span></div>
-      <div class="kv"><span>Design population</span><span>${r.brief.design_population.toLocaleString()}</span></div>
-      <div class="kv"><span>Gross density</span><span>${fmt(r.brief.gross_density_pph, 1)} p/ha</span></div>
-      <div class="kv"><span>Total plots</span><span>${r.total_plots.toLocaleString()}</span></div>
+      <div class="kv"><span>Site area</span><span>${fmt(r.land.gross_site_ha)} ha</span></div>
+      <div class="kv"><span>Buildable land</span><span>${fmt(r.land.buildable_ha)} ha</span></div>
+      <div class="kv"><span>Land taken by constraints</span><span>${fmt(r.land.constrained_ha)} ha</span></div>
+      <div class="kv"><span>People planned for</span><span>${r.brief.design_population.toLocaleString()}</span></div>
+      <div class="kv"><span>Plots laid out</span><span>${r.cadastre.total_plots.toLocaleString()}</span></div>
+      <div class="kv"><span>Facilities placed</span><span>${r.facility_siting.sited_total}</span></div>
     </section>
+    ${brief}
+    <section class="pad"><h2>Land use</h2>
+      <table><thead><tr><th>Use</th><th class="num">Target ha</th><th class="num">Actual ha</th><th class="num">Diff</th></tr></thead>
+      <tbody>${alloc}</tbody></table></section>
 
-    <section class="pad"><h2>Land allocation</h2>
-      <table><thead><tr><th>Use</th><th>Target ha</th><th>Actual ha</th><th>Var</th></tr></thead>
-      <tbody>${alloc}</tbody></table>
-    </section>
-
-    <section class="pad"><h2>Road network</h2>
-      <table><thead><tr><th>Class</th><th>Segments</th><th>Length km</th></tr></thead>
+    <section class="pad"><h2>Roads</h2>
+      <table><thead><tr><th>Class</th><th class="num">Runs</th><th class="num">km</th></tr></thead>
       <tbody>${roadRows}</tbody></table>
-      <div class="kv" style="margin-top:8px"><span>Total length</span><span>${fmt(r.roads.total_length_km, 2)} km</span></div>
-      <div class="kv"><span>Road reserve area</span><span>${fmt(r.roads.reserve_area_ha, 1)} ha</span></div>
-      <div class="kv"><span>Reserve share of site</span><span>${fmt(r.roads.reserve_pct_of_site, 1)}%</span></div>
-      <div class="kv"><span>Junctions</span><span>${r.roads.junctions}</span></div>
+      <div class="kv" style="margin-top:8px"><span>Total road length</span><span>${fmt(r.roads.total_length_km, 2)} km</span></div>
+      <div class="kv"><span>Land in road reserve</span><span>${fmt(r.roads.reserve_area_ha, 1)} ha</span></div>
     </section>
 
-    <section class="pad"><h2>Development control</h2>
-      <table><thead><tr><th>Band</th><th>Plots</th><th>Envelope m&sup2;</th><th>Floor area m&sup2;</th></tr></thead>
-      <tbody>${dcRows}</tbody></table>
-      <div class="kv" style="margin-top:8px"><span>Plots assessed</span><span>${dc.plots_assessed.toLocaleString()}</span></div>
-      <div class="kv"><span>Compliant</span><span style="color:${dc.compliance_pct >= 100 ? "var(--good)" : "var(--warn)"}">${fmt(dc.compliance_pct, 1)}%</span></div>
-      <div class="kv"><span>Land use conflicts</span><span style="color:${dc.land_use_conflicts ? "var(--warn)" : "var(--ink-dim)"}">${dc.land_use_conflicts}</span></div>
-      <div class="kv"><span>Permitted floor area</span><span>${fmt(dc.total_permitted_floor_area_m2, 0)} m&sup2;</span></div>
-      <p class="muted" style="font-size:11px;margin:8px 0 0">Envelope is the plot area left after front, side and rear setbacks. Visible at high zoom.</p>
+    <section class="pad"><h2>Water, sewer and power</h2>
+      <div class="kv"><span>Water mains</span><span>${fmt(e.water.total_length_km, 1)} km, largest ${e.water.metrics.largest_main_mm} mm</span></div>
+      <div class="kv"><span>Sewers</span><span>${fmt(e.sewer.total_length_km, 1)} km, ${e.sewer.metrics.manholes} manholes</span></div>
+      <div class="kv"><span>Sewer pump stations</span><span>${e.sewer.pump_stations}</span></div>
+      <div class="kv"><span>Deepest sewer trench</span><span>${fmt(e.sewer.metrics.max_depth_m, 2)} m of ${fmt(e.sewer.metrics.depth_limit_m, 1)} m allowed</span></div>
+      <div class="kv"><span>Power lines</span><span>${fmt(e.electricity.total_length_km, 1)} km</span></div>
+      <div class="kv"><span>Transformers needed</span><span>${e.electricity.metrics.distribution_transformers}</span></div>
+      <div class="kv"><span>Street lights</span><span>${e.lighting.total_poles.toLocaleString()} poles, ${fmt(e.lighting.connected_load_kw, 0)} kW</span></div>
+      <div class="kv"><span>Total service length</span><span>${fmt(e.totals.reticulation_km, 1)} km</span></div>
     </section>
 
-    <section class="pad"><h2>Cadastral layout</h2>
-      <table><thead><tr><th>Band</th><th>Plots</th><th>Target</th><th>Mean m&sup2;</th></tr></thead>
-      <tbody>${parcelRows}</tbody></table>
-      <div class="kv" style="margin-top:8px"><span>Plots surveyed</span><span>${r.cadastre.total_plots.toLocaleString()}</span></div>
-      <div class="kv"><span>Dwelling schedule</span><span>${r.total_plots.toLocaleString()}</span></div>
-      <div class="kv"><span>Variance</span><span style="color:${Math.abs(cadVar) > 15 ? "var(--warn)" : "var(--ink-dim)"}">${cadVar > 0 ? "+" : ""}${fmt(cadVar, 0)}%</span></div>
-      <p class="muted" style="font-size:11px;margin:8px 0 0">Zoom in past the block level to see individual plots.</p>
+    <section class="pad"><h2>Engineering works</h2>
+      <table><tbody>${worksRows}${missing}</tbody></table>
     </section>
 
-    <section class="pad"><h2>Development blocks</h2>
-      <table><thead><tr><th>Use</th><th>Blocks</th><th>ha</th><th>Plots</th></tr></thead>
-      <tbody>${blockRows}</tbody></table>
-      <div class="kv" style="margin-top:8px"><span>Blocks formed</span><span>${r.blocks.block_count.toLocaleString()}</span></div>
-      <div class="kv"><span>Indicative plot yield</span><span>${r.blocks.indicative_plots.toLocaleString()}</span></div>
-      <div class="kv"><span>Dwelling schedule target</span><span>${r.total_plots.toLocaleString()}</span></div>
+    <section class="pad"><h2>Stormwater</h2>
+      <div class="kv"><span>Natural channels</span><span>${e.stormwater.channels}, ${fmt(e.stormwater.channel_length_km, 1)} km</span></div>
+      <div class="kv"><span>Outfalls</span><span>${e.stormwater.outfalls}</span></div>
+      <div class="kv"><span>Road crossings needing culverts</span><span>${e.stormwater.culverts}</span></div>
+      <div class="kv"><span>Runoff before building</span><span>${fmt(e.stormwater.metrics.predevelopment_coefficient, 2)}</span></div>
+      <div class="kv"><span>Runoff after building</span><span>${fmt(e.stormwater.metrics.composite_runoff_coefficient, 2)}</span></div>
+      <div class="kv"><span>Storage needed</span><span>${fmt(e.stormwater.metrics.detention_storage_m3, 0)} m3</span></div>
     </section>
 
-    <section class="pad"><h2>Dwelling schedule</h2>
-      <table><thead><tr><th>Band</th><th>Plots</th><th>Plot m&sup2;</th><th>Gross ha</th></tr></thead>
-      <tbody>${dwell}</tbody></table>
-    </section>
-
-    <section class="pad"><h2>Constraints applied</h2>
-      <table><thead><tr><th>Constraint</th><th>ha</th><th>Rule</th></tr></thead>
-      <tbody>${cons}</tbody></table>
-    </section>
-
-    <section class="pad"><h2>Facility siting</h2>
-      <table><thead><tr><th>Facility</th><th>Req</th><th>Sited</th><th>Coverage</th></tr></thead>
-      <tbody>${sitedRows}</tbody></table>
-      <div class="kv" style="margin-top:8px"><span>Sited</span><span>${r.facility_siting.sited_total}</span></div>
-      <div class="kv"><span>Could not be placed</span><span style="color:${r.facility_siting.unplaced_total ? "var(--warn)" : "var(--ink-dim)"}">${r.facility_siting.unplaced_total}</span></div>
-      <p class="muted" style="font-size:11px;margin:8px 0 0">Coverage is the share of dwellings within the catchment distance the ruleset requires.</p>
-    </section>
-
-    <section class="pad"><h2>Facility schedule</h2>
-      <table><thead><tr><th>Facility</th><th>No.</th><th>ha</th><th>Catchment</th></tr></thead>
-      <tbody>${facs}</tbody></table>
-    </section>
-
-    <section class="pad"><h2>Engineering demand</h2>
+    <section class="pad"><h2>Demand</h2>
       <div class="kv"><span>Households</span><span>${fmt(i.households, 0)}</span></div>
-      <div class="kv"><span>Water, average day</span><span>${fmt(i.water_average_day_m3, 0)} m&sup3;/d</span></div>
-      <div class="kv"><span>Water, peak day</span><span>${fmt(i.water_peak_day_m3, 0)} m&sup3;/d</span></div>
-      <div class="kv"><span>Reservoir storage</span><span>${fmt(i.reservoir_storage_m3, 0)} m&sup3;</span></div>
-      <div class="kv"><span>Sewage, average day</span><span>${fmt(i.sewage_average_day_m3, 0)} m&sup3;/d</span></div>
-      <div class="kv"><span>Electrical demand</span><span>${fmt(i.electrical_demand_mva, 2)} MVA</span></div>
-      <div class="kv"><span>Solid waste</span><span>${fmt(i.solid_waste_tonnes_per_day, 1)} t/d</span></div>
+      <div class="kv"><span>Water on an average day</span><span>${fmt(i.water_average_day_m3, 0)} m3</span></div>
+      <div class="kv"><span>Sewage on an average day</span><span>${fmt(i.sewage_average_day_m3, 0)} m3</span></div>
+      <div class="kv"><span>Electricity</span><span>${fmt(i.electrical_demand_mva, 2)} MVA</span></div>
+      <div class="kv"><span>Rubbish</span><span>${fmt(i.solid_waste_tonnes_per_day, 1)} tonnes a day</span></div>
     </section>
 
-    <section class="pad"><h2>Provenance</h2>
-      <div class="kv"><span>Ruleset</span><span>${r.ruleset.jurisdiction} v${r.ruleset.version}</span></div>
-      <div class="kv"><span>Validated</span><span style="color:${r.ruleset.validated ? "var(--good)" : "var(--warn)"}">
-        ${r.ruleset.validated ? "yes" : "no — " + r.ruleset.placeholder_count + " placeholders"}</span></div>
-      <div class="kv"><span>Compute time</span><span>${fmt(Object.values(r.timings_ms).reduce((a,b)=>a+b,0), 0)} ms</span></div>
+    <section class="pad"><h2>Building rules per plot</h2>
+      <div class="kv"><span>Plots checked</span><span>${dc.plots_assessed.toLocaleString()}</span></div>
+      <div class="kv"><span>Plots that pass</span><span style="color:${dc.compliance_pct >= 100 ? "var(--good)" : "var(--warn)"}">${fmt(dc.compliance_pct, 1)}%</span></div>
+      <div class="kv"><span>Land use clashes</span><span>${dc.land_use_conflicts}</span></div>
+      <div class="kv"><span>Floor area allowed</span><span>${fmt(dc.total_permitted_floor_area_m2, 0)} m2</span></div>
+    </section>
+
+    <section class="pad"><h2>Facilities</h2>
+      <table><thead><tr><th>Facility</th><th class="num">Built</th><th class="num">People served</th></tr></thead>
+      <tbody>${sitedRows}</tbody></table>
+      <p class="muted" style="font-size:11px;margin:8px 0 0">
+        People served is the share of homes within the walking or driving
+        distance the rules ask for.</p>
+    </section>
+
+    <section class="pad"><h2>Where the numbers come from</h2>
+      <div class="kv"><span>Rule book</span><span>${r.ruleset.jurisdiction} v${r.ruleset.version}</span></div>
+      <div class="kv"><span>Checked by a planner</span><span style="color:${r.ruleset.validated ? "var(--good)" : "var(--warn)"}">
+        ${r.ruleset.validated ? "yes" : "not yet, " + r.ruleset.placeholder_count + " values to confirm"}</span></div>
+      <div class="kv"><span>Time to build this plan</span><span>${fmt(Object.values(r.timings_ms).reduce((a, b) => a + b, 0) / 1000, 1)} seconds</span></div>
     </section>`;
 }
 

@@ -41,7 +41,7 @@ A Python service stack where the actual spatial work happens:
 - Deterministic, unit-tested geoprocessing functions: parcel subdivision, block generation, road platform generation, setback enforcement, utility corridor routing
 
 **Layer 2 — Agentic AI layer.**
-Claude-based agents that read a natural-language brief and orchestrate Layer 1. Specialist agents broadly as you outlined: Brief, Remote Sensing, Suitability, Transportation, Residential Layout, Social Facilities, Infrastructure, Development Control, Optimisation, Reporting.
+Language-model agents that read a natural-language brief and orchestrate Layer 1. Specialist agents broadly as you outlined: Brief, Remote Sensing, Suitability, Transportation, Residential Layout, Social Facilities, Infrastructure, Development Control, Optimisation, Reporting. The working prototype runs its Brief agent on a small open-weight model hosted locally, which keeps briefs on your infrastructure and removes per-call API cost; the model is a configuration choice, not an architectural one, and a hosted frontier model can be substituted for harder reasoning steps.
 
 > **The single most important engineering decision in this project:** the LLM never draws geometry. It interprets intent, selects tools, sets parameters, sequences the workflow, explains results and flags conflicts. Every polygon, every plot boundary, every road centreline is produced by deterministic, testable code. This is the difference between a demo that impresses and a system a professional will put their stamp on.
 

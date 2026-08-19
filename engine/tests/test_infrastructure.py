@@ -386,7 +386,15 @@ def test_report_and_geojson_carry_the_engineering_layer(plan):
     import json
 
     report = plan.report()
-    assert "infrastructure" in report
+    # Assert on content, not on a key name. The first version of this test
+    # checked only that an "infrastructure" key existed, and passed against the
+    # demand figures while the engineering design was being dropped entirely.
+    assert "engineering" in report
+    eng = report["engineering"]
+    assert eng["water"]["total_length_km"] > 0
+    assert eng["sewer"]["runs"] > 0
+    assert "reticulation_km" in eng["totals"]
+    assert report["infrastructure"]["water_average_day_m3"] > 0
     json.dumps(report)
 
     layers = {f["properties"]["layer"] for f in plan.to_geojson()["features"]}

@@ -78,7 +78,13 @@ class MasterPlan:
                 ),
             },
             "constraints": self.constraints.summary(self.site),
-            "infrastructure": self.infrastructure.summary(),
+            # Named for the design, not the demand: the key
+            # "infrastructure" already carries the demand figures the
+            # programme derived, and two identical keys in one dict
+            # literal means the second silently wins - which is exactly
+            # what happened, and the engineering design never reached
+            # the report at all.
+            "engineering": self.infrastructure.summary(),
             "dwellings": [
                 {
                     "band": d.band,
