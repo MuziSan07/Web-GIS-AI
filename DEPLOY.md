@@ -11,11 +11,21 @@ engine as the web application. It exists so a client can be sent a link.
 
 ## Steps
 
-1. Push the project to GitHub. Do not push `.env` or `.streamlit/secrets.toml`.
-   Both are already in `.gitignore`. Check with `git status` before pushing.
+The code is already on GitHub at `MuziSan07/Web-GIS-AI`, branch `main`.
+Neither `.env` nor `.streamlit/secrets.toml` is in the repository, and neither
+has ever been committed.
 
-2. On Streamlit Community Cloud, create a new app pointing at the repository,
-   with `streamlit_app.py` as the main file.
+1. Sign in at share.streamlit.io with the GitHub account that owns the
+   repository.
+
+2. Create a new app:
+
+   - Repository: `MuziSan07/Web-GIS-AI`
+   - Branch: `main`
+   - Main file path: `streamlit_app.py`
+   - Under Advanced settings, set **Python version 3.12**. This matters: see
+     the note at the end of `requirements.txt`. Leave it on the default and
+     the build may try to compile rasterio from source and time out.
 
 3. Open the app settings, go to Secrets, and paste:
 
