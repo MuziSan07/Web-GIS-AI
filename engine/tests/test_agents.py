@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from planeng.agents import brief_agent, ollama
+from planeng.agents import brief_agent, ollama, provider
 from planeng.agents.brief_agent import (
     _reconcile_numbers,
     _to_brief,
@@ -46,7 +46,12 @@ def _payload(**over) -> dict:
 
 
 def _stub(monkeypatch, *payloads):
-    """Make the transport return canned payloads, one per call."""
+    """Make the transport return canned payloads, one per call.
+
+    Stubbed at the provider rather than at one transport. The agent picks its
+    backend at call time, so patching Ollama alone leaves a machine that also
+    has a hosted key reaching the real network mid-test.
+    """
     calls = {"n": 0, "messages": []}
 
     def fake_chat_json(messages, schema, **kwargs):
@@ -58,9 +63,31 @@ def _stub(monkeypatch, *payloads):
             duration_s=1.0, eval_tokens=100, ran_on_cpu=False,
         )
 
-    monkeypatch.setattr(ollama, "available", lambda *a, **k: True)
-    monkeypatch.setattr(ollama, "chat_json", fake_chat_json)
+    _install(monkeypatch, fake_chat_json)
     return calls
+
+
+def _install(monkeypatch, chat_json):
+    """Point the provider at a fake transport."""
+    class FakeTransport:
+        LLMError = ollama.OllamaError
+
+        @staticmethod
+        def chat_json(messages, schema, **kwargs):
+            return chat_json(messages, schema, **kwargs)
+
+        @staticmethod
+        def installed_models():
+            return ["stub"]
+
+    backend = provider.Backend(name="stub", module=FakeTransport,
+                               model="stub", where="local")
+    monkeypatch.setattr(provider, "select", lambda *a, **k: backend)
+    return backend
+
+
+def _no_model(monkeypatch):
+    monkeypatch.setattr(provider, "select", lambda *a, **k: None)
 
 
 # -- schema is generated from the ruleset -----------------------------------
@@ -272,7 +299,7 @@ def test_an_impossible_brief_is_refused_rather_than_retried_forever(monkeypatch,
 
 
 def test_no_model_falls_back_to_the_parser(monkeypatch, std):
-    monkeypatch.setattr(ollama, "available", lambda *a, **k: False)
+    _no_model(monkeypatch)
     result = understand("Plan a 600 hectare town for 20,000 people.", std)
     assert result.source == "fallback_parser"
     assert result.brief.target_population == 20000
@@ -281,18 +308,16 @@ def test_no_model_falls_back_to_the_parser(monkeypatch, std):
 
 def test_fallback_can_be_refused(monkeypatch, std):
     """A caller measuring the model must not be silently given a regex."""
-    monkeypatch.setattr(ollama, "available", lambda *a, **k: False)
+    _no_model(monkeypatch)
     with pytest.raises(ollama.OllamaError):
         understand("Plan 600 ha for 20,000 people.", std, allow_fallback=False)
 
 
 def test_transport_failure_falls_back(monkeypatch, std):
-    monkeypatch.setattr(ollama, "available", lambda *a, **k: True)
-
     def boom(*a, **k):
         raise ollama.OllamaError("model not found")
 
-    monkeypatch.setattr(ollama, "chat_json", boom)
+    _install(monkeypatch, boom)
     result = understand("Plan a 600 hectare town for 20,000 people.", std)
     assert result.source == "fallback_parser"
 
@@ -364,7 +389,8 @@ def test_agent_status_endpoint_states_the_mode(monkeypatch):
 
     from planeng.api import app
 
-    monkeypatch.setattr(ollama, "available", lambda *a, **k: False)
+    _no_model(monkeypatch)
     body = TestClient(app).get("/api/agent").json()
     assert body["reachable"] is False
-    assert body["mode"] == "rule-based parser"
+    assert body["mode"] == "rule based reader"
+    assert "gsk_" not in json.dumps(body), "the status must never carry a key"

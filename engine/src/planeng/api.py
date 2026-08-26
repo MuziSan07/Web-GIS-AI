@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .agents import brief_agent, ollama
+from .agents import brief_agent, provider
 from .brief.models import DensityMix, PlanningBrief
 from .export.bundle import FORMATS, export_all
 from .nlp.prompt import parse_prompt
@@ -242,15 +242,11 @@ def _slug(name: str) -> str:
 
 @app.get("/api/agent")
 def agent_status() -> dict:
-    """What the AI layer is running on, so the UI can say so plainly."""
-    reachable = ollama.available()
-    return {
-        "reachable": reachable,
-        "host": ollama.DEFAULT_HOST,
-        "default_model": ollama.DEFAULT_MODEL,
-        "installed_models": ollama.installed_models() if reachable else [],
-        "mode": "local model" if reachable else "rule-based parser",
-    }
+    """What the AI layer is running on, so the interface can say so plainly.
+
+    Reports whether a key is present, never the key itself.
+    """
+    return provider.status()
 
 
 @app.get("/api/health")

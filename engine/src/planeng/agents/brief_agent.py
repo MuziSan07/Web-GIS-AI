@@ -20,14 +20,14 @@ Three things make a small local model usable here:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from pydantic import ValidationError
 
 from ..brief.models import DensityMix, Objective, PlanningBrief, SettlementForm
 from ..nlp.prompt import extract_numbers, parse_prompt
 from ..standards.loader import Standards, load_standards
-from . import ollama
+from . import ollama, provider
 
 SYSTEM_PROMPT = """\
 You extract structured town planning briefs from a planner's instruction.
@@ -196,25 +196,30 @@ def understand(
     prompt: str,
     std: Standards | None = None,
     *,
-    model: str = ollama.DEFAULT_MODEL,
+    model: str | None = None,
     allow_fallback: bool = True,
 ) -> BriefResult:
     """Turn a planner's sentence into a validated brief.
 
-    Falls back to the deterministic parser when no local model is reachable, so
-    the product works on a laptop with Ollama stopped. The fallback is recorded
-    on the result rather than hidden - a planner should know whether a model or
-    a regex read their instruction.
+    The model may be local or hosted; this function does not know which, and
+    that is the point. Falls back to the deterministic parser when no model is
+    reachable at all, so the product works on a laptop with nothing running.
+    The fallback is recorded on the result rather than hidden: a planner should
+    know whether a model or a regular expression read their instruction.
     """
     std = std or load_standards()
 
-    if not ollama.available():
+    backend = provider.select()
+    if backend is None:
         if not allow_fallback:
             raise ollama.OllamaError(
-                "No local model reachable and fallback disabled. "
-                "Start Ollama with `ollama serve`."
+                "No model reachable and fallback disabled. Start Ollama with "
+                "`ollama serve`, or set GROQ_API_KEY for a hosted model."
             )
-        return _fallback(prompt, "No local model reachable; used the rule-based parser.")
+        return _fallback(prompt, "No model reachable; used the rule-based parser.")
+
+    if model:
+        backend = replace(backend, model=model)
 
     schema = build_schema(std)
     messages = [
@@ -223,11 +228,13 @@ def understand(
     ]
 
     try:
-        raw, completion = ollama.chat_json(messages, schema, model=model)
-    except ollama.OllamaError as exc:
+        raw, completion = backend.chat_json(messages, schema)
+    except backend.error as exc:
         if not allow_fallback:
             raise
-        return _fallback(prompt, f"Local model failed ({exc}); used the rule-based parser.")
+        return _fallback(
+            prompt, f"The {backend.where} model failed ({exc}); "
+                    f"used the rule-based parser.")
 
     warnings: list[str] = []
     raw, corrections, grounded = _reconcile_numbers(raw, prompt)
@@ -265,16 +272,16 @@ def understand(
             ),
         })
         try:
-            raw, completion = ollama.chat_json(messages, schema, model=model)
+            raw, completion = backend.chat_json(messages, schema)
             brief = _to_brief(raw, prompt)
             warnings.append("The model's first brief was invalid and was repaired on retry.")
-        except (ollama.OllamaError, ValidationError, ValueError) as exc2:
+        except (backend.error, ValidationError, ValueError) as exc2:
             if not allow_fallback:
                 raise
             return _fallback(
                 prompt,
-                f"Local model produced an invalid brief twice ({exc2}); "
-                f"used the rule-based parser.",
+                f"The {backend.where} model produced an invalid brief twice "
+                f"({exc2}); used the rule-based parser.",
             )
 
     return BriefResult(

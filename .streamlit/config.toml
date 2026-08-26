@@ -1,0 +1,8 @@
+[theme]
+base = "dark"
+primaryColor = "#6ea8fe"
+
+[server]
+# A master plan is a few megabytes of GeoJSON. The default limit is fine for
+# uploads but the message size matters for sending the drawing to the browser.
+maxMessageSize = 300

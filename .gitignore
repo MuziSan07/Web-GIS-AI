@@ -15,3 +15,7 @@ exports/
 
 # Client deliverables are built artefacts, not source
 deliverables/
+
+# Secrets
+.env
+.streamlit/secrets.toml

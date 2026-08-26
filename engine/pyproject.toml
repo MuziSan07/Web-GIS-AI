@@ -9,8 +9,9 @@ dependencies = [
     "pyproj>=3.6",
     "geopandas>=1.0",
     "rasterio>=1.4",
-    "networkx>=3.0",
-    "ortools>=9.10",
+    # networkx and ortools were listed here and never imported. Together they
+    # are a large install, which matters on a hosted container with a
+    # gigabyte of memory. Add them back the day something uses them.
     "pyyaml>=6.0",
     "pydantic>=2.0",
     "scipy>=1.11",
